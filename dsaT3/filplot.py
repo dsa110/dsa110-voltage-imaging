@@ -636,5 +636,16 @@ if __name__=='__main__':
     print(not_real)
     if options.slack and not_real==False:
         print("Sending to slack")
-        client = slack.WebClient(token='xoxb-508911196752-1791739181778-iNG0m1Q2kr1aP276x1KVVYuj');
+        slack_file = '{0}/.config/slack_api'.format(
+            os.path.expanduser("~")
+        )
+        if not os.path.exists(slack_file):
+            raise RuntimeError(
+                "Could not find file with slack api token at {0}".format(
+                    slack_file
+                    )
+            )
+        with open(slack_file) as sf_handler:
+            slack_token = sf_handler.read()
+        client = slack.WebClient(token=slack_token);
         client.files_upload(channels='candidates',file=fnameout,initial_comment=fnameout);
