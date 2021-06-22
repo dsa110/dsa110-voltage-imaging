@@ -1,4 +1,6 @@
 """Creating and manipulating measurement sets from T3 visibilities.
+
+Author: Dana Simard, dana.simard@astro.caltech.edu
 """
 import yaml
 import h5py
@@ -26,11 +28,42 @@ MYCONF = cnf.Conf()
 CORRPARAMS = MYCONF.get('corr')
 
 def get_mjd(armed_mjd, utc_start, specnum):
+    """Get the start mjd of a voltage dump.
+    
+    Parameters
+    ----------
+    armed_mjd : float
+        The time at which the snaps were armed, in mjd.
+    utc_start : int
+        The spectrum number at which the correlator was started.
+    specnum : int
+        The spectrum number of the first spectrum in the voltage dump,
+        referenced to when the correlator was started.
+
+    Returns
+    -------
+    tstart : float
+        The start time of the voltage dump in mjd.
+    """
     tstart = (armed_mjd+utc_start*4*8.192e-6/86400+
               (1/(250e6/8192/2)*specnum/ct.SECONDS_PER_DAY))
     return tstart
 
 def get_blen(antennas):
+    """Gets the baseline lengths for a subset of antennas.
+
+    Parameters
+    ----------
+    antennas : list
+        The antennas used in the array.
+
+    Returns
+    -------
+    blen : array
+        The ITRF coordinates of all of the baselines.
+    bname : list
+        The names of all of the baselines.
+    """
     ant_itrf = get_itrf(
         latlon_center=(ct.OVRO_LAT*u.rad, ct.OVRO_LON*u.rad, ct.OVRO_ALT*u.m)
     ).loc[antennas]
@@ -78,6 +111,16 @@ def generate_T3_ms(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS
         The correlator data files for each node.
     params : dictionary
         T3 parameters.
+    start_offset : int
+        The timesample to start at.  If given, end_offset must also be given.
+        Defaults to transform the whole file to a ms.
+    end_offset : int
+        The timesample to end at.
+
+    Returns
+    -------
+    str
+        The name of the measurement set created.
     """
     msname = '{0}/{1}'.format(params['msdir'], name)
     antenna_order = params['antennas']
@@ -144,6 +187,19 @@ def generate_T3_ms(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS
 
 def plot_image(imname, verbose=False, outname=None, show=True, cellsize='0.2arcsec'):
     """Plots an image from the casa-generated image file.
+
+    Paramters
+    ---------
+    imname : str
+        The name full path of the image file.
+    verbose : bool
+        If set to True, prints some information about the image.
+    outname : str
+        If provided, saves the image in <outname>_image.png.
+    show : bool
+        If False, the image is closed at the end of the function.
+    cellsize : str
+        The size of each pixel, in a Casa-recognized angle.
     """
     # TODO: Get cell-size from the image data
     error = 0
@@ -191,6 +247,24 @@ def plot_image(imname, verbose=False, outname=None, show=True, cellsize='0.2arcs
         print('{0} errors occured during imaging'.format(error))
 
 def read_bfweights(bfweights, bfdir):
+    """Reads the beamforming weights.
+
+    Parameters
+    ----------
+    bfweights : str
+        The label of the file containing the weights. Will open
+        <bfdir>/beamformer_weights_<bfweights>.yaml
+    bfdir : str
+        The directory in which the beamformer weights are stored.
+
+    Returns
+    -------
+    antenna_order : list
+        The order of the antennas in the bfweights aray.
+    bfweights : ndarray
+        The beamformer weights, (antenna, freqeuncy, polarization).
+        Frequency is in the same order as in the correlator.
+    """
     with open('{0}/beamformer_weights_{1}.yaml'.format(
             bfdir,
             bfweights,
@@ -220,6 +294,20 @@ def read_bfweights(bfweights, bfdir):
     return bfparams['antenna_order'], gains
 
 def calibrate_T3ms(msname, bfweights, bfdir):
+    """Calibrates a measurement set using the beamformer weights.
+
+    Calibrated data is written into the CORRECTED_DATA column.
+
+    Parameters
+    ----------
+    msname : str
+        The name of the measurement set.
+    bfweights : str
+        The label of the file containing the weights. Will open
+        <bfdir>/beamformer_weights_<bfweights>.yaml
+    bfdir : str
+        The directory in which the beamformer weights are stored.
+    """
     antenna_order, gains = read_bfweights(bfweights, bfdir)
     gains = gains[:, ::-1, :]
 
