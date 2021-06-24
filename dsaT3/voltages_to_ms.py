@@ -5,6 +5,7 @@ import json
 import re
 import shutil
 import os
+import glob
 import subprocess
 from multiprocessing import Process, Queue
 import argparse
@@ -12,27 +13,27 @@ import yaml
 from pkg_resources import resource_filename
 from astropy.time import Time
 from dsaT3.utils import get_declination_mjd
-from dsaT3.T3imaging import generate_T3_ms, calibrate_T3ms
+from dsaT3.T3imaging import generate_T3_uvh5, calibrate_T3ms
+from dsacalib.ms_io import uvh5_to_ms
 
 CORRDIR = '/media/ubuntu/data/dsa110/voltage/'
-CORRQ = Queue()
-COPYQ = Queue()
-NCORRPROC = 8
-NCOPYPROC = 8
-MSDIR = '/media/ubuntu/data/dsa110/imaging/'
+PROCESSQ = Queue()
+NPROC = 3
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 with open(PARAMFILE) as YAMLF:
     T3PARAMS = yaml.load(YAMLF, Loader=yaml.FullLoader)['T3corr']
 
-def _copy_handler():
-    while not COPYQ.empty():
-        args = COPYQ.get()
-        shutil.copy(
-            args[0],
-            args[1]
-        )
-
-def _corr_handler(deltat_ms, deltaf_MHz):
+def _process_handler(
+        deltat_ms,
+        deltaf_MHz,
+        name,
+        declination,
+        tstart,
+        ntint,
+        nfint,
+        start_offset,
+        end_offset
+):
     """Correlates data using T3 cpu correlator.
 
     Parameters
@@ -42,12 +43,16 @@ def _corr_handler(deltat_ms, deltaf_MHz):
     deltaf_MHz : float
         The desired integration frequency in the correlated data, in MHz.
     """
-    while not CORRQ.empty():
-        vf = CORRQ.get()
+    while not PROCESSQ.empty():
+        srcfile, vfile = PROCESSQ.get()
+        shutil.copy(
+            srcfile,
+            vfile
+        )
         command = (
             '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/dsacorr '
             '-d {0} -o {0}.corr -t {1} -f {2} -a 30'.format(
-                vf,
+                vfile,
                 deltat_ms,
                 deltaf_MHz
             )
@@ -60,8 +65,24 @@ def _corr_handler(deltat_ms, deltaf_MHz):
         )
         proc_stdout = str(process.communicate()[0].strip())
         print(proc_stdout)
+        os.remove(vfile)
+        corr_files = dict({})
+        corr = re.findall('corr\d\d', vfile)[0]
+        corr_files[corr] = '{0}.corr'.format(vfile)
+        uvh5name = generate_T3_uvh5(
+            name,
+            declination,
+            tstart,
+            ntint=ntint,
+            nfint=nfint,
+            filelist=corr_files,
+            start_offset=start_offset,
+            end_offset=end_offset
+        )
+        print(uvh5name)
+        os.remove(corr_files[corr])
 
-def __main__(name, filelist, ntint, nfint, start_offset, end_offset, clean=False):
+def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
     """
     Correlate voltage files and convert to a measurement set.
 
@@ -96,60 +117,39 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset, clean=False
     deltaf_MHz = T3PARAMS['deltaf_MHz']
 
     # Copy files
-    voltage_files = []
+    # Do 3 at a time
     for file in filelist:
         corr = re.findall('corr\d\d', file)[0]
         fname = file.split('/')[-1]
         outfile = '{0}/{1}_{2}'.format(CORRDIR, corr, fname)
-        COPYQ.put([file, outfile])
-        voltage_files += [outfile]
+        PROCESSQ.put([file, outfile])
     processes = []
-    for i in range(NCOPYPROC):
+    for i in range(NPROC):
         processes += [Process(
-            target=_copy_handler,
+            target=_process_handler,
+            args=(
+                deltat_ms,
+                deltaf_MHz,
+                name,
+                declination,
+                tstart,
+                ntint,
+                nfint,
+                start_offset,
+                end_offset
+            ),
             daemon=True
         )]
         processes[i].start()
     for thread in processes:
         thread.join()
-
-    # Correlate files
-    for vf in voltage_files:
-        CORRQ.put(vf)
-    processes = []
-    for i in range(NCORRPROC):
-        processes += [Process(
-            target=_corr_handler,
-            args=(deltat_ms, deltaf_MHz),
-            daemon=True
-        )]
-        processes[i].start()
-    for thread in processes:
-        thread.join()
-        
-    corr_files = dict({})
-    for vf in voltage_files:
-        corr = re.findall('corr\d\d', vf)[0]
-        corr_files[corr] = '{0}.corr'.format(vf)
-    if clean:
-        for vf in voltage_files:
-            os.remove(vf)
-
-    # Generate the measurement set
-    msname = generate_T3_ms(
-        name,
-        declination,
-        tstart,
-        ntint=ntint,
-        nfint=nfint,
-        filelist=corr_files,
-        start_offset=start_offset,
-        end_offset=end_offset
+    hdf5files = sorted(glob.glob('{0}/{1}_corr??.hdf5'.format(
+        T3PARAMS['msdir'], name
+    )))
+    uvh5_to_ms(
+        hdf5files,
+        '{0}/{1}'.format(T3PARAMS['msdir'], name)
     )
-    print('{0} created'.format(msname))
-    if clean:
-        for cf in corr_files.values():
-            os.remove(cf)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

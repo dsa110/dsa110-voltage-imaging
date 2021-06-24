@@ -15,7 +15,7 @@ import casatools as cc
 from casacore.tables import table
 from dsautils import cnf
 from dsamfs.io import initialize_uvh5_file, update_uvh5_file
-from dsacalib.ms_io import uvh5_to_ms, extract_vis_from_ms
+from dsacalib.ms_io import extract_vis_from_ms
 from dsacalib.fringestopping import calc_uvw
 import dsacalib.constants as ct
 from dsacalib.preprocess import remove_outrigger_delays
@@ -29,7 +29,7 @@ CORRPARAMS = MYCONF.get('corr')
 
 def get_mjd(armed_mjd, utc_start, specnum):
     """Get the start mjd of a voltage dump.
-    
+
     Parameters
     ----------
     armed_mjd : float
@@ -90,7 +90,7 @@ def get_blen(antennas):
             k += 1
     return blen, bname
 
-def generate_T3_ms(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS, start_offset=None, end_offset=None):
+def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS, start_offset=None, end_offset=None):
     """Generates a measurement set from the T3 correlations.
 
     Parameters
@@ -122,7 +122,6 @@ def generate_T3_ms(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS
     str
         The name of the measurement set created.
     """
-    msname = '{0}/{1}'.format(params['msdir'], name)
     antenna_order = params['antennas']
     fobs = params['f0_GHz']+params['deltaf_MHz']*1e-3*(
         np.arange(params['nchan'])+0.5)
@@ -143,7 +142,6 @@ def generate_T3_ms(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS
         np.ones(len(tobs))*pt_dec
     )
     buvw = np.array([bu, bv, bw]).T
-    hdf5_files = []
     for corr, ch0 in params['ch0'].items():
         fobs_corr = fobs[ch0:(ch0+params['nchan_corr'])]
         data = np.fromfile(
@@ -177,15 +175,10 @@ def generate_T3_ms(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS
         UV = UVData()
         UV.read(outname, file_type='uvh5')
         remove_outrigger_delays(UV)
-        if nfavg is not None:
+        if nfint is not None:
             UV.frequency_average(nfint)
         UV.write_uvh5(outname, clobber=True)
-        hdf5_files += [outname]
-    uvh5_to_ms(
-        hdf5_files,
-        msname
-    )
-    return msname
+    return outname
 
 def plot_image(imname, verbose=False, outname=None, show=True, cellsize='0.2arcsec'):
     """Plots an image from the casa-generated image file.
@@ -317,7 +310,14 @@ def calibrate_T3ms(msname, bfweights, bfdir):
         msname,
         data='data'
     )
-    data = data.reshape(data.shape[0], data.shape[1], data.shape[2], gains.shape[1], -1, data.shape[-1])
+    data = data.reshape(
+        data.shape[0],
+        data.shape[1],
+        data.shape[2],
+        gains.shape[1],
+        -1,
+        data.shape[-1]
+    )
     assert np.all(np.diff(fobs) > 0)
     assert orig_shape == ['time', 'baseline', 'spw']
     for i in range(data.shape[0]):
