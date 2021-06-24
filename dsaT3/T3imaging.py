@@ -105,8 +105,8 @@ def generate_T3_ms(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS
         The number of time bins that have been binned together (compared to the
         native correlator resolution).
     nfint : float
-        The number of frequency bins that have been binned together (compared
-        to the native resolution).
+        The number of frequency bins to bin together before writing the ms
+        (compared to the native resolution).
     filelist : dictionary
         The correlator data files for each node.
     params : dictionary
@@ -124,8 +124,8 @@ def generate_T3_ms(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS
     """
     msname = '{0}/{1}'.format(params['msdir'], name)
     antenna_order = params['antennas']
-    fobs = params['f0_GHz']+params['deltaf_MHz']*1e-3*nfint*(
-        np.arange(params['nchan']//nfint)+0.5)
+    fobs = params['f0_GHz']+params['deltaf_MHz']*1e-3*(
+        np.arange(params['nchan'])+0.5)
     antenna_order = params['antennas']
     nant = len(antenna_order)
     nbls = (nant*(nant+1))//2
@@ -145,7 +145,7 @@ def generate_T3_ms(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS
     buvw = np.array([bu, bv, bw]).T
     hdf5_files = []
     for corr, ch0 in params['ch0'].items():
-        fobs_corr = fobs[ch0//nfint:(ch0+params['nchan_corr'])//nfint]
+        fobs_corr = fobs[ch0:(ch0+params['nchan_corr'])]
         data = np.fromfile(
             filelist[corr],
             dtype=np.float32
@@ -177,6 +177,8 @@ def generate_T3_ms(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS
         UV = UVData()
         UV.read(outname, file_type='uvh5')
         remove_outrigger_delays(UV)
+        if nfavg is not None:
+            UV.frequency_average(nfint)
         UV.write_uvh5(outname, clobber=True)
         hdf5_files += [outname]
     uvh5_to_ms(

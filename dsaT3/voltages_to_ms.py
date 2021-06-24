@@ -14,7 +14,7 @@ from astropy.time import Time
 from dsaT3.utils import get_declination_mjd
 from dsaT3.T3imaging import generate_T3_ms, calibrate_T3ms
 
-CORRDIR = '/home/ubuntu/data/'
+CORRDIR = '/media/ubuntu/data/dsa110/voltage/'
 CORRQ = Queue()
 COPYQ = Queue()
 NCORRPROC = 8
@@ -61,7 +61,7 @@ def _corr_handler(deltat_ms, deltaf_MHz):
         proc_stdout = str(process.communicate()[0].strip())
         print(proc_stdout)
 
-def __main__(name, filelist, ntint=96, nfint=1, start_offset=158, end_offset=167, clean=True):
+def __main__(name, filelist, ntint, nfint, start_offset, end_offset, clean=False):
     """
     Correlate voltage files and convert to a measurement set.
 
@@ -74,8 +74,8 @@ def __main__(name, filelist, ntint=96, nfint=1, start_offset=158, end_offset=167
     ntint : int
         The number of time samples to integrate together during correlation.
     nfint : int
-        The number of frequency channels to integrate together during
-        correlation.
+        The number of frequency channels to integrate together after removing
+        outrigger delays.
     start_offset : int
         The number of time samples (after correlation) to offset the start of
         the measurement set by.  If not provided, the entire time is converted
@@ -93,7 +93,7 @@ def __main__(name, filelist, ntint=96, nfint=1, start_offset=158, end_offset=167
     tstart = Time(metadata['mjds'], format='mjd')
     declination = get_declination_mjd(tstart)
     deltat_ms = ntint*T3PARAMS['deltat_s']*1e3
-    deltaf_MHz = nfint*T3PARAMS['deltaf_MHz']
+    deltaf_MHz = T3PARAMS['deltaf_MHz']
 
     # Copy files
     voltage_files = []
@@ -116,7 +116,6 @@ def __main__(name, filelist, ntint=96, nfint=1, start_offset=158, end_offset=167
     # Correlate files
     for vf in voltage_files:
         CORRQ.put(vf)
-    # Spawn 4 processes to handle the correlation
     processes = []
     for i in range(NCORRPROC):
         processes += [Process(
@@ -149,7 +148,7 @@ def __main__(name, filelist, ntint=96, nfint=1, start_offset=158, end_offset=167
     )
     print('{0} created'.format(msname))
     if clean:
-        for cf in corr_files.values:
+        for cf in corr_files.values():
             os.remove(cf)
 
 if __name__ == '__main__':
@@ -165,28 +164,28 @@ if __name__ == '__main__':
         '--ntint',
         type=int,
         nargs='?',
-        const=96,
+        default=8,
         help='number of native time bins to integrate during correlation'
     )
     parser.add_argument(
         '--nfint',
         type=int,
         nargs='?',
-        const=1,
+        default=8,
         help='number of native freq bins to integrate during correlation'
     )
     parser.add_argument(
         '--startoffset',
         type=int,
         nargs='?',
-        const=158,
+        default=1716,
         help='nbins from beginning of correlated data to start writing to ms'
     )
     parser.add_argument(
         '--stopoffset',
         type=int,
         nargs='?',
-        const=167,
+        default=2484,
         help='number of bins from end of correlation to write to ms'
     )
     parser.add_argument(
@@ -197,4 +196,4 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
     __main__(args.name, args.filelist, ntint=args.ntint, nfint=args.nfint,
-             start_offset=args.startoffset, stop_offset=args.stop_offset)
+             start_offset=args.startoffset, end_offset=args.stopoffset)
