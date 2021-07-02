@@ -130,30 +130,20 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
     nbls = (nant*(nant+1))//2
     tsamp = params['deltat_s']*ntint*u.s
     tobs = tstart + (np.arange(params['nsubint']//ntint)+0.5)*tsamp
-    if start_offset is not None:
-        assert end_offset is not None
-        tobs = tobs[start_offset:end_offset]
+    assert start_offset is not None
+    assert end_offset is not None
+    tobs = tobs[start_offset:end_offset]
     blen, bname = get_blen(params['antennas'])
-    bu, bv, bw = calc_uvw(
-        blen,
-        tobs.mjd,
-        'HADEC',
-        np.zeros(len(tobs))*u.rad,
-        np.ones(len(tobs))*pt_dec
-    )
-    buvw = np.array([bu, bv, bw]).T
-    for corr, ch0 in params['ch0'].items():
+    itemspframe = nbls*params['nchan_corr']*params['npol']*2
+    framespblock = 16
+    itemspblock = itemspframe*framespblock
+    assert (end_offset - start_offset)%framespblock == 0
+    nblocks = (end_offset-start_offset)//framespblock
+    print(start_offset, end_offset, nblocks)
+    for corr, corrfile in filelist.items(): # corr, ch0 in params['ch0'].items():
+        ch0 = params['ch0'][corr]
         fobs_corr = fobs[ch0:(ch0+params['nchan_corr'])]
-        data = np.fromfile(
-            filelist[corr],
-            dtype=np.float32
-        )
-        data = data.reshape(-1, 2)
-        data = data[..., 0] + 1.j*data[..., 1]
-        data = data.reshape(-1, nbls, len(fobs_corr), 4)[..., [0, -1]]
-        if start_offset is not None:
-            data = data[start_offset:end_offset, ...]
-        outname = '{2}/{1}_{0}.hdf5'.format(corr, name, params['msdir'])
+        outname = '{1}_{0}.hdf5'.format(corr, name)
         with h5py.File(outname, 'w') as fhdf5:
             initialize_uvh5_file(
                 fhdf5,
@@ -163,15 +153,35 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                 antenna_order,
                 fobs_corr
             )
-            update_uvh5_file(
-                fhdf5,
-                data,
-                tobs.jd,
-                tsamp,
-                bname,
-                buvw,
-                np.ones(data.shape, np.float32)
-            )
+            with open(corrfile, 'rb') as cfhandler:
+                if start_offset is not None:
+                    cfhandler.seek(start_offset*32*itemspframe)
+                for i in range(nblocks):
+                    data = np.fromfile(
+                        cfhandler,
+                        dtype=np.float32,
+                        count=itemspblock
+                    )
+                    data = data.reshape(-1, 2)
+                    data = data[..., 0] + 1.j*data[..., 1]
+                    data = data.reshape(-1, nbls, len(fobs_corr), params['npol'])[..., [0, -1]]
+                    bu, bv, bw = calc_uvw(
+                        blen,
+                        tobs.mjd[i*framespblock:(i+1)*framespblock],
+                        'HADEC',
+                        np.zeros(framespblock)*u.rad,
+                        np.ones(framespblock)*pt_dec
+                    )
+                    buvw = np.array([bu, bv, bw]).T
+                    update_uvh5_file(
+                        fhdf5,
+                        data,
+                        tobs.jd[i*framespblock:(i+1)*framespblock],
+                        tsamp,
+                        bname,
+                        buvw,
+                        np.ones(data.shape, np.float32)
+                    )
         UV = UVData()
         UV.read(outname, file_type='uvh5')
         remove_outrigger_delays(UV)

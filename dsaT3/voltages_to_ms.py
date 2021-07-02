@@ -3,36 +3,60 @@ A script to convert voltage files to measurement sets.
 """
 import json
 import re
-import shutil
 import os
 import glob
 import subprocess
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Manager
+import queue
 import argparse
+import time
 import yaml
 from pkg_resources import resource_filename
 from astropy.time import Time
-from dsaT3.utils import get_declination_mjd
-from dsaT3.T3imaging import generate_T3_uvh5, calibrate_T3ms
+from dsaT3.utils import get_declination_mjd, rsync_file
+from dsaT3.T3imaging import generate_T3_uvh5
 from dsacalib.ms_io import uvh5_to_ms
 
-CORRDIR = '/media/ubuntu/data/dsa110/voltage/'
-PROCESSQ = Queue()
+CORRDIR = '/home/ubuntu/data/'
 NPROC = 3
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 with open(PARAMFILE) as YAMLF:
     T3PARAMS = yaml.load(YAMLF, Loader=yaml.FullLoader)['T3corr']
 
-def _process_handler(
+def rsync_handler(
+        rsync_queue,
+        corr_queue,
+        nvoltagefiles,
+        rsync_done
+):
+    while not rsync_done.is_set():
+        #if nvoltagefiles > 2:
+        #    time.sleep(10)
+        #    continue
+        try:
+            item = rsync_queue.get()
+        except queue.Empty:
+            time.sleep(10)
+        else:
+            if item == 'END':
+                rsync_done.set()
+                continue
+            srcfile, vfile = item
+            rsync_file(
+                srcfile,
+                vfile
+            )
+            #nvoltagefiles += 1
+            corr_queue.put(vfile)
+
+def corr_handler(
         deltat_ms,
         deltaf_MHz,
-        name,
-        declination,
-        tstart,
-        ntint,
-        nfint,
-        start_offset,
-        end_offset
+        corr_queue,
+        uvh5_queue,
+        corr_done,
+        nvoltagefiles,
+        ncorrfiles
 ):
     """Correlates data using T3 cpu correlator.
 
@@ -43,44 +67,77 @@ def _process_handler(
     deltaf_MHz : float
         The desired integration frequency in the correlated data, in MHz.
     """
-    while not PROCESSQ.empty():
-        srcfile, vfile = PROCESSQ.get()
-        shutil.copy(
-            srcfile,
-            vfile
-        )
-        command = (
-            '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/dsacorr '
-            '-d {0} -o {0}.corr -t {1} -f {2} -a 30'.format(
-                vfile,
-                deltat_ms,
-                deltaf_MHz
+    while not corr_done.is_set():
+        #if ncorrfiles > 2:
+        #    time.sleep(10)
+        #    continue
+        try:
+            vfile = corr_queue.get()
+        except queue.Empty:
+            time.sleep(10)
+        else:
+            if vfile == 'END':
+                corr_done.set()
+                continue
+            command = (
+                '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/dsacorr '
+                '-d {0} -o {0}.corr -t {1} -f {2} -a 30'.format(
+                    vfile,
+                    deltat_ms,
+                    deltaf_MHz
+                )
             )
-        )
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            shell=True
-        )
-        proc_stdout = str(process.communicate()[0].strip())
-        print(proc_stdout)
-        os.remove(vfile)
-        corr_files = dict({})
-        corr = re.findall('corr\d\d', vfile)[0]
-        corr_files[corr] = '{0}.corr'.format(vfile)
-        uvh5name = generate_T3_uvh5(
-            name,
-            declination,
-            tstart,
-            ntint=ntint,
-            nfint=nfint,
-            filelist=corr_files,
-            start_offset=start_offset,
-            end_offset=end_offset
-        )
-        print(uvh5name)
-        os.remove(corr_files[corr])
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                shell=True
+            )
+            proc_stdout = str(process.communicate()[0].strip())
+            print(proc_stdout)
+            os.remove(vfile)
+            #nvoltagefiles -= 1
+            #ncorrfiles += 1
+            corr_files = dict({})
+            corr = re.findall('corr\d\d', vfile)[0]
+            corr_files[corr] = '{0}.corr'.format(vfile)
+            uvh5_queue.put(corr_files)
+
+def uvh5_handler(
+        name,
+        declination,
+        tstart,
+        ntint,
+        nfint,
+        start_offset,
+        end_offset,
+        uvh5_queue,
+        uvh5_done,
+        ncorrfiles
+):
+    while not uvh5_done.is_set():
+        try:
+            corr_files = uvh5_queue.get()
+        except queue.Empty:
+            time.sleep(10)
+        else:
+            if corr_files == 'END':
+                uvh5_done.set()
+                continue
+            uvh5name = generate_T3_uvh5(
+                '{0}/{1}'.format(CORRDIR, name),
+                declination,
+                tstart,
+                ntint=ntint,
+                nfint=nfint,
+                filelist=corr_files,
+                start_offset=start_offset,
+                end_offset=end_offset
+            )
+            print(uvh5name)
+            for value in corr_files.values():
+                os.remove(value)
+            #ncorrfiles -= 1
 
 def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
     """
@@ -107,7 +164,9 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
         set.
     """
     # Get metadata
-    with open('{0}.json'.format(filelist[0])) as jsonf:
+    filename = '{0}.json'.format(filelist[0])
+    outfile = rsync_file(filename, CORRDIR)
+    with open(outfile) as jsonf:
         metadata = json.load(jsonf)#[name]
         key = list(metadata.keys())[0]
         metadata = metadata[key]
@@ -116,33 +175,75 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
     deltat_ms = ntint*T3PARAMS['deltat_s']*1e3
     deltaf_MHz = T3PARAMS['deltaf_MHz']
 
+    manager = Manager()
+    nvoltagefiles = manager.Value('i', 0)
+    ncorrfiles = manager.Value('i', 0)
+    rsync_queue = manager.Queue()
+    corr_queue = manager.Queue()
+    uvh5_queue = manager.Queue()
+    rsync_done = manager.Event()
+    corr_done = manager.Event()
+    uvh5_done = manager.Event()
     # Copy files
     # Do 3 at a time
-    for file in filelist:
-        corr = re.findall('corr\d\d', file)[0]
-        fname = file.split('/')[-1]
+    for filename in filelist:
+        corr = re.findall('corr\d\d', filename)[0]
+        fname = filename.split('/')[-1]
         outfile = '{0}/{1}_{2}'.format(CORRDIR, corr, fname)
-        PROCESSQ.put([file, outfile])
+        print(filename, outfile)
+        rsync_queue.put([filename, outfile])
+        rsync_queue.put('END')
     processes = []
+    processes += [Process(
+        target=rsync_handler,
+        args=(
+            rsync_queue,
+            corr_queue,
+            nvoltagefiles,
+            rsync_done
+            ),
+        daemon=True
+    )]
     for i in range(NPROC):
         processes += [Process(
-            target=_process_handler,
+            target=corr_handler,
             args=(
                 deltat_ms,
                 deltaf_MHz,
+                corr_queue,
+                uvh5_queue,
+                corr_done,
+                nvoltagefiles,
+                ncorrfiles
+            ),
+            daemon=True
+        )]
+    for i in range(NPROC):
+        processes += [Process(
+            target=uvh5_handler,
+            args=(
                 name,
                 declination,
                 tstart,
                 ntint,
                 nfint,
                 start_offset,
-                end_offset
+                end_offset,
+                uvh5_queue,
+                uvh5_done,
+                ncorrfiles
             ),
             daemon=True
         )]
-        processes[i].start()
-    for thread in processes:
-        thread.join()
+    for proc in processes:
+        proc.start()
+    processes[0].join()
+    corr_queue.put('END')
+    for proc in processes[1:1+NPROC]:
+        proc.join()
+    uvh5_queue.put('END')
+    for proc in processes[1+NPROC:]:
+        proc.join()
     hdf5files = sorted(glob.glob('{0}/{1}_corr??.hdf5'.format(
         T3PARAMS['msdir'], name
     )))
@@ -150,6 +251,8 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
         hdf5files,
         '{0}/{1}'.format(T3PARAMS['msdir'], name)
     )
+    for file in hdf5files:
+        os.remove(file)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
