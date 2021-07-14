@@ -349,7 +349,7 @@ def calibrate_T3ms(msname, bfweights, bfdir, dedisp_mask=None):
                     gains[antenna_order.index(a2), ...]
                 )*gains[antenna_order.index(a1), ...]
             )
-            bl_gains = np.exp(2.j*np.pi*np.angle(bl_gains))
+            bl_gains = np.exp(1.j*np.angle(bl_gains))
             data[i, ...] *= bl_gains[:, np.newaxis, :]
         except ValueError:
             flags[i, ...] = 1
