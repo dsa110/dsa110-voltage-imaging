@@ -26,6 +26,7 @@ with open(PARAMFILE) as YAMLF:
 
 MYCONF = cnf.Conf()
 CORRPARAMS = MYCONF.get('corr')
+MFSPARAMS = MYCONF.get('fringe')
 
 def get_mjd(armed_mjd, utc_start, specnum):
     """Get the start mjd of a voltage dump.
@@ -139,11 +140,20 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
     itemspblock = itemspframe*framespblock
     assert (end_offset - start_offset)%framespblock == 0
     nblocks = (end_offset-start_offset)//framespblock
-    print(start_offset, end_offset, nblocks)
+    # Get outrigger delays
+    delays = np.zeros(len(bname), dtype=np.int)
+    for i, bn in enumerate(bname):
+        ant1, ant2 = bn.split('-')
+        delays[i] = MFSPARAMS['outrigger_delays'].get(int(ant1), 0)-\
+                    MFSPARAMS['outrigger_delays'].get(int(ant2), 0)
     for corr, corrfile in filelist.items(): # corr, ch0 in params['ch0'].items():
         ch0 = params['ch0'][corr]
-        fobs_corr = fobs[ch0:(ch0+params['nchan_corr'])]
+        fobs_corr_full = fobs[ch0:(ch0+params['nchan_corr'])]
+        fobs_corr = np.median(fobs_corr_full.reshape(-1, nfint), axis=-1)
         outname = '{1}_{0}.hdf5'.format(corr, name)
+        vis_model = np.exp(2j*np.pi*fobs_corr_full[:, np.newaxis]*
+                    delays[np.newaxis, :, np.newaxis, np.newaxis])
+        vis_model = vis_model.astype(np.complex64)
         with h5py.File(outname, 'w') as fhdf5:
             initialize_uvh5_file(
                 fhdf5,
@@ -151,7 +161,8 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                 2,
                 pt_dec.to_value(u.rad),
                 antenna_order,
-                fobs_corr
+                fobs_corr,
+                #outrigger_delays
             )
             with open(corrfile, 'rb') as cfhandler:
                 if start_offset is not None:
@@ -164,7 +175,10 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                     )
                     data = data.reshape(-1, 2)
                     data = data[..., 0] + 1.j*data[..., 1]
-                    data = data.reshape(-1, nbls, len(fobs_corr), params['npol'])[..., [0, -1]]
+                    data = data.reshape(framespblock, nbls, len(fobs_corr_full), params['npol'])[..., [0, -1]]
+                    data /= vis_model
+                    if nfint > 1:
+                        data = data.reshape(framespblock, nbls, len(fobs_corr), nfint, 2).mean(axis=3)
                     bu, bv, bw = calc_uvw(
                         blen,
                         tobs.mjd[i*framespblock:(i+1)*framespblock],
@@ -175,19 +189,13 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                     buvw = np.array([bu, bv, bw]).T
                     update_uvh5_file(
                         fhdf5,
-                        data,
+                        data.astype(np.complex64),
                         tobs.jd[i*framespblock:(i+1)*framespblock],
                         tsamp,
                         bname,
                         buvw,
                         np.ones(data.shape, np.float32)
                     )
-        UV = UVData()
-        UV.read(outname, file_type='uvh5')
-        remove_outrigger_delays(UV)
-        if nfint is not None:
-            UV.frequency_average(nfint)
-        UV.write_uvh5(outname, clobber=True)
     return outname
 
 def plot_image(imname, verbose=False, outname=None, show=True, cellsize='0.2arcsec'):
@@ -298,7 +306,7 @@ def read_bfweights(bfweights, bfdir):
     )
     return bfparams['antenna_order'], gains
 
-def calibrate_T3ms(msname, bfweights, bfdir):
+def calibrate_T3ms(msname, bfweights, bfdir, dedisp_mask=None):
     """Calibrates a measurement set using the beamformer weights.
 
     Calibrated data is written into the CORRECTED_DATA column.
@@ -312,6 +320,8 @@ def calibrate_T3ms(msname, bfweights, bfdir):
         <bfdir>/beamformer_weights_<bfweights>.yaml
     bfdir : str
         The directory in which the beamformer weights are stored.
+    dedisp_mask : str
+        The path to a dedispersion mask to be applied.
     """
     antenna_order, gains = read_bfweights(bfweights, bfdir)
     gains = gains[:, ::-1, :]
@@ -339,14 +349,16 @@ def calibrate_T3ms(msname, bfweights, bfdir):
                     gains[antenna_order.index(a2), ...]
                 )*gains[antenna_order.index(a1), ...]
             )
-            bl_gains = bl_gains/np.abs(bl_gains)
+            bl_gains = np.exp(2.j*np.pi*np.angle(bl_gains))
             data[i, ...] *= bl_gains[:, np.newaxis, :]
         except ValueError:
             flags[i, ...] = 1
             print('no calibration solutions for baseline {0}-{1}'.format(a1, a2))
     data = data.swapaxes(0, 1).reshape((-1, len(fobs), data.shape[-1]))
     flags = flags.swapaxes(0, 1).reshape((-1, len(fobs), flags.shape[-1]))
-
+    # dedisp_flags = np.load(dedisp_mask)
+    # check size 
+    # data[data!=data] = np.nanmean(data) this should be okay now
     with table('{0}.ms'.format(msname), readonly=False) as tb:
         tb.putcol('CORRECTED_DATA', data)
         tb.putcol('FLAG', flags)

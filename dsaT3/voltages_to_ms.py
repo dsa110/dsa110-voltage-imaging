@@ -7,6 +7,7 @@ import os
 import glob
 import subprocess
 from multiprocessing import Process, Manager
+import multiprocessing
 import queue
 import argparse
 import time
@@ -27,12 +28,13 @@ def rsync_handler(
         rsync_queue,
         corr_queue,
         nvoltagefiles,
+        nvoltagefiles_lock,
         rsync_done
 ):
     while not rsync_done.is_set():
-        #if nvoltagefiles > 2:
-        #    time.sleep(10)
-        #    continue
+        if nvoltagefiles.value > 2:
+            time.sleep(10)
+            continue
         try:
             item = rsync_queue.get()
         except queue.Empty:
@@ -41,12 +43,14 @@ def rsync_handler(
             if item == 'END':
                 rsync_done.set()
                 continue
+            with nvoltagefiles_lock:
+                nvoltagefiles.value += 1
             srcfile, vfile = item
-            rsync_file(
-                srcfile,
-                vfile
-            )
-            #nvoltagefiles += 1
+            if not os.path.exists('{0}.corr'.format(vfile)):
+                rsync_file(
+                    srcfile,
+                    vfile
+                )
             corr_queue.put(vfile)
 
 def corr_handler(
@@ -56,7 +60,9 @@ def corr_handler(
         uvh5_queue,
         corr_done,
         nvoltagefiles,
-        ncorrfiles
+        nvoltagefiles_lock,
+        ncorrfiles,
+        ncorrfiles_lock
 ):
     """Correlates data using T3 cpu correlator.
 
@@ -68,9 +74,9 @@ def corr_handler(
         The desired integration frequency in the correlated data, in MHz.
     """
     while not corr_done.is_set():
-        #if ncorrfiles > 2:
-        #    time.sleep(10)
-        #    continue
+        if ncorrfiles.value > 2:
+            time.sleep(10)
+            continue
         try:
             vfile = corr_queue.get()
         except queue.Empty:
@@ -79,25 +85,29 @@ def corr_handler(
             if vfile == 'END':
                 corr_done.set()
                 continue
-            command = (
-                '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/dsacorr '
-                '-d {0} -o {0}.corr -t {1} -f {2} -a 30'.format(
-                    vfile,
-                    deltat_ms,
-                    deltaf_MHz
+            with ncorrfiles_lock:
+                ncorrfiles.value += 1
+            if not os.path.exists('{0}.corr'.format(vfile)):
+                command = (
+                    '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/dsacorr '
+                    '-d {0} -o {0}.corr -t {1} -f {2} -a 30'.format(
+                        vfile,
+                        deltat_ms,
+                        deltaf_MHz
+                    )
                 )
-            )
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                shell=True
-            )
-            proc_stdout = str(process.communicate()[0].strip())
-            print(proc_stdout)
-            os.remove(vfile)
-            #nvoltagefiles -= 1
-            #ncorrfiles += 1
+                process = subprocess.Popen(
+                    command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    shell=True
+                )
+                proc_stdout = str(process.communicate()[0].strip())
+                print(proc_stdout)
+            if os.path.exists(vfile):
+                os.remove(vfile)
+            with nvoltagefiles_lock:
+                nvoltagefiles.value -= 1
             corr_files = dict({})
             corr = re.findall('corr\d\d', vfile)[0]
             corr_files[corr] = '{0}.corr'.format(vfile)
@@ -113,17 +123,21 @@ def uvh5_handler(
         end_offset,
         uvh5_queue,
         uvh5_done,
-        ncorrfiles
+        ncorrfiles,
+        ncorrfiles_lock
 ):
+    proc = multiprocessing.current_process()
     while not uvh5_done.is_set():
+        print(uvh5_done.is_set())
         try:
             corr_files = uvh5_queue.get()
         except queue.Empty:
             time.sleep(10)
         else:
             if corr_files == 'END':
+                print('proc {0} is setting uvh5_done'.format(proc.pid))
                 uvh5_done.set()
-                continue
+                return
             uvh5name = generate_T3_uvh5(
                 '{0}/{1}'.format(CORRDIR, name),
                 declination,
@@ -137,7 +151,9 @@ def uvh5_handler(
             print(uvh5name)
             for value in corr_files.values():
                 os.remove(value)
-            #ncorrfiles -= 1
+            with ncorrfiles_lock:
+                ncorrfiles.value -= 1
+    print('{0} exiting'.format(proc.pid))
 
 def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
     """
@@ -177,7 +193,9 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
 
     manager = Manager()
     nvoltagefiles = manager.Value('i', 0)
+    nvoltagefiles_lock = manager.Lock()
     ncorrfiles = manager.Value('i', 0)
+    ncorrfiles_lock = manager.Lock()
     rsync_queue = manager.Queue()
     corr_queue = manager.Queue()
     uvh5_queue = manager.Queue()
@@ -192,7 +210,7 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
         outfile = '{0}/{1}_{2}'.format(CORRDIR, corr, fname)
         print(filename, outfile)
         rsync_queue.put([filename, outfile])
-        rsync_queue.put('END')
+    rsync_queue.put('END')
     processes = []
     processes += [Process(
         target=rsync_handler,
@@ -200,6 +218,7 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
             rsync_queue,
             corr_queue,
             nvoltagefiles,
+            nvoltagefiles_lock,
             rsync_done
             ),
         daemon=True
@@ -214,7 +233,9 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
                 uvh5_queue,
                 corr_done,
                 nvoltagefiles,
-                ncorrfiles
+                nvoltagefiles_lock,
+                ncorrfiles,
+                ncorrfiles_lock
             ),
             daemon=True
         )]
@@ -231,7 +252,8 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
                 end_offset,
                 uvh5_queue,
                 uvh5_done,
-                ncorrfiles
+                ncorrfiles,
+                ncorrfiles_lock
             ),
             daemon=True
         )]
@@ -239,20 +261,27 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
         proc.start()
     processes[0].join()
     corr_queue.put('END')
+    print('All rsync processes done')
     for proc in processes[1:1+NPROC]:
         proc.join()
+    print('All corr processes done')
+    # We get here
     uvh5_queue.put('END')
     for proc in processes[1+NPROC:]:
         proc.join()
-    hdf5files = sorted(glob.glob('{0}/{1}_corr??.hdf5'.format(
-        T3PARAMS['msdir'], name
-    )))
-    uvh5_to_ms(
-        hdf5files,
-        '{0}/{1}'.format(T3PARAMS['msdir'], name)
-    )
-    for file in hdf5files:
-        os.remove(file)
+        print('A uvh5 process joined.')
+    print('All uvh5 processes done')
+    # We arent getting here
+    # Is it possible the events are not being shared properly?
+    #hdf5files = sorted(glob.glob('{0}/{1}_corr??.hdf5'.format(
+    #    CORRDIR, name
+    #)))
+    # uvh5_to_ms(
+    #     hdf5files,
+    #     '{0}/{1}'.format(T3PARAMS['msdir'], name)
+    # )
+    #for file in hdf5files:
+    #    os.remove(file)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
