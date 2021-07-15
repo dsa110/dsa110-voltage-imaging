@@ -226,8 +226,10 @@ def plot_image(imname, verbose=False, outname=None, show=True, cellsize='0.2arcs
     imvals = ia.getchunk(0, int(npixx))[:, :, 0, 0]
     #imvals = fftshift(imvals)
     error += ia.done()
+    peakx, peaky = np.where(imvals.max() == imvals)
+    locx = Angle(((peakx-dd['refpix'][0])*dd['incr'][0]+dd['refval'][0])[0]*u.rad)
+    locy = Angle(((peaky-dd['refpix'][1])*dd['incr'][1]+dd['refval'][1])[0]*u.rad)
     if verbose:
-        peakx, peaky = np.where(imvals.max() == imvals)
         print('Peak SNR at pix ({0},{1}) = {2}'.format(peakx[0], peaky[0],
                                                        imvals.max()/
                                                        imvals.std()))
@@ -258,6 +260,7 @@ def plot_image(imname, verbose=False, outname=None, show=True, cellsize='0.2arcs
         plt.close()
     if error > 0:
         print('{0} errors occured during imaging'.format(error))
+    return locx, locy
 
 def read_bfweights(bfweights, bfdir):
     """Reads the beamforming weights.
