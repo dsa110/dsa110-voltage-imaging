@@ -27,6 +27,73 @@ with open(PARAMFILE) as YAMLF:
 MYCONF = cnf.Conf()
 CORRPARAMS = MYCONF.get('corr')
 MFSPARAMS = MYCONF.get('fringe')
+CORR_ORDER = np.arange(1, 17)
+ANTENNA_ORDER = [
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    20,
+    19,
+    18,
+    17,
+    16,
+    15,
+    14,
+    13,
+    100,
+    101,
+    102,
+    116,
+    103,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+]
 
 def get_mjd(armed_mjd, utc_start, specnum):
     """Get the start mjd of a voltage dump.
@@ -126,7 +193,6 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
     antenna_order = params['antennas']
     fobs = params['f0_GHz']+params['deltaf_MHz']*1e-3*(
         np.arange(params['nchan'])+0.5)
-    antenna_order = params['antennas']
     nant = len(antenna_order)
     nbls = (nant*(nant+1))//2
     tsamp = params['deltat_s']*ntint*u.s
@@ -198,7 +264,7 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                     )
     return outname
 
-def plot_image(imname, verbose=False, outname=None, show=True, cellsize='0.2arcsec'):
+def plot_image(imname, verbose=False, outname=None, show=True):
     """Plots an image from the casa-generated image file.
 
     Paramters
@@ -226,11 +292,28 @@ def plot_image(imname, verbose=False, outname=None, show=True, cellsize='0.2arcs
     imvals = ia.getchunk(0, int(npixx))[:, :, 0, 0]
     #imvals = fftshift(imvals)
     error += ia.done()
-    peakx, peaky = np.where(imvals.max() == imvals)
-    locx = Angle(((peakx-dd['refpix'][0])*dd['incr'][0]+dd['refval'][0])[0]*u.rad)
-    locy = Angle(((peaky-dd['refpix'][1])*dd['incr'][1]+dd['refval'][1])[0]*u.rad)
+    max_idxs = np.unravel_index(imvals.argmax(), imvals.shape)
+    cellsizex = Angle(dd['incr'][0], dd['axisunits'][0])
+    cellsizey = Angle(dd['incr'][1], dd['axisunits'][1])
+    ra, dec = (
+        Angle('{0}{1}'.format(dd['refval'][0], dd['axisunits'][0])),
+        Angle('{0}{1}'.format(dd['refval'][1], dd['axisunits'][1]))
+    )
+    brightest_point = (
+        ra +
+        Angle('{0}{1}'.format(
+            dd['incr'][0]*(max_idxs[0]-dd['refpix'][0]),
+            dd['axisunits'][0]
+        ))/np.cos(dec),
+        dec +
+        Angle('{0}{1}'.format(
+            dd['incr'][1]*(max_idxs[1]-dd['refpix'][1]),
+            dd['axisunits'][1]
+        ))
+    )
     if verbose:
-        print('Peak SNR at pix ({0},{1}) = {2}'.format(peakx[0], peaky[0],
+        print('Peak SNR at pix ({0},{1}) = {2}'.format(max_idxs[0],
+                                                       max_idxs[1],
                                                        imvals.max()/
                                                        imvals.std()))
         print('Value at peak: {0}'.format(imvals.max()))
@@ -243,24 +326,24 @@ def plot_image(imname, verbose=False, outname=None, show=True, cellsize='0.2arcs
         interpolation='none',
         origin='lower',
         extent=[
-            (-imvals.shape[0]/2*Angle(cellsize)).to_value(u.arcsecond),
-            (imvals.shape[0]/2*Angle(cellsize)).to_value(u.arcsecond),
-            (-imvals.shape[1]/2*Angle(cellsize)).to_value(u.arcsecond),
-            (imvals.shape[1]/2*Angle(cellsize)).to_value(u.arcsecond)
+            (-imvals.shape[0]/2*Angle(cellsizex)).to_value(u.arcmin),
+            (imvals.shape[0]/2*Angle(cellsizex)).to_value(u.arcmin),
+            (-imvals.shape[1]/2*Angle(cellsizey)).to_value(u.arcmin),
+            (imvals.shape[1]/2*Angle(cellsizey)).to_value(u.arcmin)
         ]
     )
     plt.colorbar(pim)
     ax.axvline(0, color='white', alpha=0.5)
     ax.axhline(0, color='white', alpha=0.5)
-    ax.set_xlabel('l (arcsec)')
-    ax.set_ylabel('m (arcsec)')
+    ax.set_xlabel('l (arcmin)')
+    ax.set_ylabel('m (arcmin)')
     if outname is not None:
         plt.savefig('{0}_image.png'.format(outname))
     if not show:
         plt.close()
     if error > 0:
         print('{0} errors occured during imaging'.format(error))
-    return locx, locy
+    return brightest_point
 
 def read_bfweights(bfweights, bfdir):
     """Reads the beamforming weights.
@@ -276,7 +359,7 @@ def read_bfweights(bfweights, bfdir):
     Returns
     -------
     antenna_order : list
-        The order of the antennas in the bfweights aray.
+        The order of the antennas in the bfweights array.
     bfweights : ndarray
         The beamformer weights, (antenna, freqeuncy, polarization).
         Frequency is in the same order as in the correlator.
@@ -288,11 +371,13 @@ def read_bfweights(bfweights, bfdir):
         bfparams = yaml.load(yamlf, Loader=yaml.FullLoader)
     if 'cal_solutions' in bfparams.keys():
         bfparams = bfparams['cal_solutions']
+    antenna_order = bfparams.get('antenna_order', ANTENNA_ORDER)
+    corr_order = bfparams.get('corr_order', CORR_ORDER)
     gains = np.zeros(
-        (len(bfparams['antenna_order']), len(bfparams['corr_order']), 48, 2),
+        (len(antenna_order), len(corr_order), 48, 2),
         dtype=np.complex
     )
-    for corridx, corr in enumerate(bfparams['corr_order']):
+    for corridx, corr in enumerate(corr_order):
         with open(
                 '{0}/beamformer_weights_corr{1:02d}_{2}.dat'.format(
                     bfdir,
@@ -305,9 +390,9 @@ def read_bfweights(bfweights, bfdir):
         temp = data[64:].reshape(64, 48, 2, 2)
         gains[:, corridx, :, :] = temp[..., 0]+1.0j*temp[..., 1]
     gains = gains.reshape(
-        (len(bfparams['antenna_order']), len(bfparams['corr_order'])*48, 2)
+        (len(antenna_order), len(corr_order)*48, 2)
     )
-    return bfparams['antenna_order'], gains
+    return antenna_order, gains
 
 def calibrate_T3ms(msname, bfweights, bfdir, dedisp_mask=None):
     """Calibrates a measurement set using the beamformer weights.
