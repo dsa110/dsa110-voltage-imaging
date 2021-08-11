@@ -1,9 +1,12 @@
 from time import sleep
-import etcd3
 from dask.distributed import Client
+from dsautils import dsa_store
+
+#import etcd3
+#etcd = etcd3.Etcd3Client()  # TODO: replace with DsaStore
 
 client = Client('127.0.0.1:8786')
-etcd = etcd3.Etcd3Client()  # TODO: replace with DsaStore
+de = dsa_store.DsaStore()
 
 def task(a):
     sleep(5)
@@ -16,7 +19,7 @@ def cb_func(resp):
         res = client.submit(task, event.value.decode('utf-8'))
         tasks.append(res)
 
-wid = etcd.add_watch_callback('/mon/corr/1/trigger', cb_func)
+wid = de.add_watch('/mon/corr/1/trigger', cb_func)
 
 while True:
     try:
