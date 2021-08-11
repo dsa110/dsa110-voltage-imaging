@@ -27,5 +27,8 @@ while True:
                 print(future.result())
         sleep(1)
     except KeyboardInterrupt:
-        print('Exiting after last pass through tasks')
+        print(f'Cancelling {len(tasks)} tasks and exiting')
+        for future in tasks:
+            future.cancel()
+            tasks.remove(future)
         break
