@@ -13,11 +13,12 @@ def task(a):
     return 'hi, '+str(a)
 
 tasks = []
-def cb_func(resp):
+def cb_func(dd):
     global tasks
-    for event in resp.events:
-        res = client.submit(task, event.value.decode('utf-8'))
-        tasks.append(res)
+#    for event in resp.events:
+#        res = client.submit(task, event.value.decode('utf-8'))
+    res = client.submit(task, dd)
+    tasks.append(res)
 
 wid = de.add_watch('/mon/corr/1/trigger', cb_func)
 
