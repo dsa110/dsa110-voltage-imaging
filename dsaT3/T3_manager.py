@@ -3,6 +3,7 @@ from dsautils import dsa_store
 from dsaT3 import filplot_funcs as filf
 ds = dsa_store.DsaStore()
 import time, os
+import json
 
 TIMEOUT_FIL = 300
 TIMEOUT_CORR = 21600
@@ -55,7 +56,10 @@ def run(a):
     found_filfile = wait_for_local_file(filfile,TIMEOUT_FIL)
 
     if found_filfile is None:
-        np.save(OUTPUT_PATH + trigname + '.npy',output_dict)
+
+        with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'
+            json.dump(output_dict, f, ensure_ascii=False, indent=4)
+        
         return output_dict
     
     # launch candplotter
@@ -63,14 +67,17 @@ def run(a):
         output_dict['candplot'] = filf.filplot_entry(datestring,a)
     except:
         print('Could not make filplot '+output_dict['trigname'])
-        np.save(OUTPUT_PATH + output_dict['trigname'] + '.npy',output_dict)
+        with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'
+            json.dump(output_dict, f, ensure_ascii=False, indent=4)
+
         return output_dict
 
     # wait for voltage files to be written
     
 
     # write output_dict to disk
-    np.save(OUTPUT_PATH + output_dict['trigname'] + '.npy',output_dict)
+    with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'                  
+        json.dump(output_dict, f, ensure_ascii=False, indent=4)
 
     return output_dict
 
