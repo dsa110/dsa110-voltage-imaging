@@ -1,35 +1,47 @@
 from time import sleep
 from dask.distributed import Client
 from dsautils import dsa_store
+from dsaT3 import T3_manager
+import glob, os, json
 
-#import etcd3
-#etcd = etcd3.Etcd3Client()  # TODO: replace with DsaStore
-
-client = Client('127.0.0.1:8786')
+client = Client('10.42.0.232:8786')
 de = dsa_store.DsaStore()
 
 def task(a):
-    sleep(5)
-    return 'hi, '+str(a)
 
+    T3dict = T3_manager.run(a)
+    return T3dict
+    
 tasks = []
 def cb_func(dd):
-    global tasks
-#    for event in resp.events:
-#        res = client.submit(task, event.value.decode('utf-8'))
+    global tasks    
     res = client.submit(task, dd)
     tasks.append(res)
 
+# set watch
 wid = de.add_watch('/mon/corr/1/trigger', cb_func)
+
+# clean up existing triggers
+datestring = de.get_dict('/cnf/datestring')
+trig_jsons = glob.glob('/data/dsa110/T2/'+datestring+'/cluster_output*.json')
+for fl in trig_jsons:
+    f = open(fl)
+    d = json.load(f)
+    trigname = list(d.keys())[0]
+    if not os.path.exists('/home/ubuntu/data/T3/'+trigname+'.png'):
+        res = client.submit(task, d)
+        tasks.append(res)
+    
 
 while True:
     try:
         print(f'{len(tasks)} tasks in queue')
         for future in tasks:
+            print(future)
             if future.done():
-                tasks.remove(future)
                 print(future.result())
-        sleep(1)
+                tasks.remove(future)                
+        sleep(5)
     except KeyboardInterrupt:
         print(f'Cancelling {len(tasks)} tasks and exiting')
         for future in tasks:
