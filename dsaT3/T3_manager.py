@@ -62,11 +62,12 @@ def run(a):
     filfile = '/data/dsa110/T1/' + corrXX + '/' + datestring + '/fil_' + output_dict['trigname'] + '/' + output_dict['trigname'] +	'_' + str(ibeam) + '.fil'
     print(filfile)
     found_filfile = wait_for_local_file(filfile,TIMEOUT_FIL)
+    output_dict['filfile'] = found_filfile
 
     if found_filfile is None:
 
-        with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'
-            json.dump(output_dict, f, ensure_ascii=False, indent=4)
+        #with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'
+        #    json.dump(output_dict, f, ensure_ascii=False, indent=4)
         
         return output_dict
     
@@ -75,8 +76,8 @@ def run(a):
         output_dict['candplot'] = filf.filplot_entry(datestring,a)
     except:
         print('Could not make filplot '+output_dict['trigname'])
-        with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'
-            json.dump(output_dict, f, ensure_ascii=False, indent=4)
+        #with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'
+        #    json.dump(output_dict, f, ensure_ascii=False, indent=4)
 
         return output_dict
 
