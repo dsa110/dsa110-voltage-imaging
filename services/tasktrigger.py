@@ -11,7 +11,13 @@ def task(a):
 
     T3dict = T3_manager.run(a)
     return T3dict
-    
+
+def task_nowait(a):
+
+    T3dict = T3_manager.run_nowait(a)
+    return T3dict
+
+
 tasks = []
 def cb_func(dd):
     global tasks    
@@ -19,7 +25,7 @@ def cb_func(dd):
     tasks.append(res)
 
 # set watch
-wid = de.add_watch('/mon/corr/1/trigger', cb_func)
+wid = de.add_watch('/mon/corr/1/voltage', cb_func)
 
 # clean up existing triggers
 datestring = de.get_dict('/cnf/datestring')
@@ -29,7 +35,7 @@ for fl in trig_jsons:
     d = json.load(f)
     trigname = list(d.keys())[0]
     if not os.path.exists('/home/ubuntu/data/T3/'+trigname+'.png'):
-        res = client.submit(task, d)
+        res = client.submit(task_nowait, d)
         tasks.append(res)
     
 
