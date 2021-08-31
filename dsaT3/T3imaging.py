@@ -197,8 +197,12 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
     nbls = (nant*(nant+1))//2
     tsamp = params['deltat_s']*ntint*u.s
     tobs = tstart + (np.arange(params['nsubint']//ntint)+0.5)*tsamp
-    assert start_offset is not None
-    assert end_offset is not None
+    if start_offset is None:
+        start_offset = 0
+    if end_offset is None:
+        end_offset = len(tobs)
+    #assert start_offset is not None
+    #assert end_offset is not None
     tobs = tobs[start_offset:end_offset]
     blen, bname = get_blen(params['antennas'])
     itemspframe = nbls*params['nchan_corr']*params['npol']*2
@@ -264,7 +268,8 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                     )
     return outname
 
-def plot_image(imname, verbose=False, outname=None, show=True):
+def plot_image(imname, verbose=False, outname=None, show=True,
+              expected_point=None):
     """Plots an image from the casa-generated image file.
 
     Paramters
@@ -280,7 +285,6 @@ def plot_image(imname, verbose=False, outname=None, show=True):
     cellsize : str
         The size of each pixel, in a Casa-recognized angle.
     """
-    # TODO: Get cell-size from the image data
     error = 0
     ia = cc.image()
     error += not ia.open(imname)
@@ -337,6 +341,17 @@ def plot_image(imname, verbose=False, outname=None, show=True):
     ax.axhline(0, color='white', alpha=0.5)
     ax.set_xlabel('l (arcmin)')
     ax.set_ylabel('m (arcmin)')
+    plttitle = '{0} {1:.2f} {2:.2f}'.format(
+        imname,
+        brightest_point[0],
+        brightest_point[1]
+    )
+    if expected_point is not None:
+        plttitle += ', offset by {0:.2f} {1:.2f}'.format(
+            (brightest_point[0]-expected_point[0]).to(u.arcmin),
+            (brightest_point[1]-expected_point[1]).to(u.arcmin)
+        )
+    plt.title(plttitle)
     if outname is not None:
         plt.savefig('{0}_image.png'.format(outname))
     if not show:
