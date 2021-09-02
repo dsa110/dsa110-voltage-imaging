@@ -18,51 +18,46 @@ import astropy.units as u
 from dsaT3.utils import get_declination_mjd, rsync_file
 from dsaT3.T3imaging import generate_T3_uvh5
 from dsacalib.ms_io import uvh5_to_ms
+from dsautils import cnf
 
-CORRDIR = '/media/ubuntu/ssd/data/B0329/'
 NPROC = 8
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 with open(PARAMFILE) as YAMLF:
     T3PARAMS = yaml.load(YAMLF, Loader=yaml.FullLoader)['T3corr']
+CONF = cnf.Conf()
+CORR_LIST = list(CONF.get('corr')['ch0'].keys())
 
-#def rsync_handler(
-#        rsync_queue,
-#        corr_queue,
-#        nvoltagefiles,
-#        nvoltagefiles_lock,
-#        # rsync_done
-#):
-#    rsync_done = False
-#    while not rsync_done:
-#        if nvoltagefiles.value >= NPROC:
-#            time.sleep(10)
-#            continue
-#        try:
-#            item = rsync_queue.get()
-#        except queue.Empty:
-#            time.sleep(10)
-#        else:
-#            if item == 'END':
-#                rsync_done = True
-#                continue
-#            with nvoltagefiles_lock:
-#                nvoltagefiles.value += 1
-#            srcfile, vfile = item
-#            #if not os.path.exists('{0}.corr'.format(vfile)):
-#            #    rsync_file(
-#            #        srcfile,
-#            #        vfile
-#            #    )
-#            corr_queue.put(vfile)
+def rsync_handler(
+        rsync_queue,
+        corr_queue,
+        rsync,
+):
+    rsync_done = False
+    while not rsync_done:
+        try:
+            item = rsync_queue.get()
+        except queue.Empty:
+            time.sleep(10)
+        else:
+            if item == 'END':
+                rsync_done = True
+                continue
+            srcfile, vfile = item
+            if not os.path.exists(vfile):
+                if rsync:
+                    rsync_file(
+                        srcfile,
+                        vfile
+                    )
+                else:
+                    os.symlink(srcfile, vfile)
+            corr_queue.put(vfile)
 
 def corr_handler(
         deltat_ms,
         deltaf_MHz,
         corr_queue,
         uvh5_queue,
-        # corr_done,
-        #nvoltagefiles,
-        #nvoltagefiles_lock,
         ncorrfiles,
         ncorrfiles_lock
 ):
@@ -93,12 +88,14 @@ def corr_handler(
             if not os.path.exists('{0}.corr'.format(vfile)):
                 command = (
                     '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/dsacorr '
-                    '-d {0} -o {0}.corr -t {1} -f {2} -a 30'.format(
+                    '-d {0} -o {0}.corr -t {1} -f {2} -a {3}'.format(
                         vfile,
                         deltat_ms,
-                        deltaf_MHz
+                        deltaf_MHz, 
+                        len(T3PARAMS['antennas'])
                     )
                 )
+                print(command)
                 process = subprocess.Popen(
                     command,
                     stdout=subprocess.PIPE,
@@ -107,17 +104,13 @@ def corr_handler(
                 )
                 proc_stdout = str(process.communicate()[0].strip())
                 print(proc_stdout)
-            #if os.path.exists(vfile):
-            #    os.remove(vfile)
-            #with nvoltagefiles_lock:
-            #    nvoltagefiles.value -= 1
             corr_files = dict({})
             corr = re.findall('corr\d\d', vfile)[0]
             corr_files[corr] = '{0}.corr'.format(vfile)
             uvh5_queue.put(corr_files)
 
 def uvh5_handler(
-        name,
+        candname,
         declination,
         tstart,
         ntint,
@@ -125,14 +118,12 @@ def uvh5_handler(
         start_offset,
         end_offset,
         uvh5_queue,
-        #uvh5_done,
         ncorrfiles,
         ncorrfiles_lock
 ):
     proc = multiprocessing.current_process()
     uvh5_done = False
     while not uvh5_done:
-        #print(uvh5_done.is_set())
         try:
             corr_files = uvh5_queue.get()
         except queue.Empty:
@@ -141,10 +132,9 @@ def uvh5_handler(
             if corr_files == 'END':
                 print('proc {0} is setting uvh5_done'.format(proc.pid))
                 uvh5_done = True
-                #uvh5_done.set()
                 continue
             uvh5name = generate_T3_uvh5(
-                '{0}/{1}'.format(CORRDIR, name),
+                '{0}/{1}'.format(T3PARAMS['corrdir'], candname),
                 declination,
                 tstart,
                 ntint=ntint,
@@ -160,14 +150,17 @@ def uvh5_handler(
                 ncorrfiles.value -= 1
     print('{0} exiting'.format(proc.pid))
 
-def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
+def __main__(candname, datestring, ntint, nfint, start_offset, end_offset):
     """
     Correlate voltage files and convert to a measurement set.
 
     Parameters
     ----------
-    name : str
+    candname : str
         The unique name of the candidate.
+    datestring : str
+        The datestring the observation is archived under. Use 'current' if the
+        data is from the current, unarchived observing run.
     filelist : list
         The full paths to the voltage files on dsa-storage.
     ntint : int
@@ -188,56 +181,68 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
         start_offset = None
     if end_offset < 0:
         end_offset = None
+    if datestring == 'current':
+        rsync = True
+        filenames = [
+            '{0}.sas.pvt:/home/ubuntu/data/{1}_data.out'.format(
+                corr,
+                candname
+            ) for corr in CORR_LIST
+        ]
+        headername = '{0}/{1}.json'.format(T3PARAMS['T3dir'], candname)
+    else:
+        rsync = False
+        filenames = [
+            '{0}/{1}/{2}_{3}_data.out'.format(
+                T3PARAMS['archivedir'],
+                datestring,
+                corr,
+                candname
+            ) for corr in CORR_LIST
+        ]
+        headername = '{0}/{1}/{2}.json'.format(
+            T3PARAMS['archivedir'],
+            datestring,
+            candname
+        )
+    outnames = [
+        '{0}/{1}_{2}_data.out'.format(
+            T3PARAMS['corrdir'],
+            corr,
+            candname
+        ) for corr in CORR_LIST
+    ]
     # Get metadata
-    filename = '{0}.json'.format(filelist[0][:-4])
-    #outfile = rsync_file(filename, CORRDIR)
-    with open(outfile) as jsonf:
-        metadata = json.load(jsonf)#[name]
-        key = list(metadata.keys())[0]
-        metadata = metadata[key]
+    with open(headername) as jsonf:
+        metadata = json.load(jsonf)
     tstart = Time(metadata['mjds'], format='mjd')
-    #try:
-    #    declination = get_declination_mjd(tstart)
-    #except ConnectionError:
-    declination = 54.58209895*u.deg
+    try:
+        declination = get_declination_mjd(tstart)
+    except ConnectionError:
+        declination = 54.58209895*u.deg
     deltat_ms = ntint*T3PARAMS['deltat_s']*1e3
     deltaf_MHz = T3PARAMS['deltaf_MHz']
 
     manager = Manager()
-    #nvoltagefiles = manager.Value('i', 0)
-    #nvoltagefiles_lock = manager.Lock()
     ncorrfiles = manager.Value('i', 0)
     ncorrfiles_lock = manager.Lock()
-    #rsync_queue = manager.Queue()
+    rsync_queue = manager.Queue()
     corr_queue = manager.Queue()
     uvh5_queue = manager.Queue()
-    #rsync_done = manager.Event()
-    #corr_done = manager.Event()
-    #uvh5_done = manager.Event()
     # Copy files
-    # Do 3 at a time
-    for filename in filelist:
-        #corr = re.findall('corr\d\d', filename)[0]
-        #fname = filename.split('/')[-1]
-        #outfile = '{0}/{1}_{2}'.format(CORRDIR, corr, fname)
-        #print(filename, outfile)
-        #rsync_queue.put([filename, outfile])
-        corr_queue.put(filename)
-    for i in range(NPROC):
-        corr_queue.put('END')
-    #rsync_queue.put('END')
+    for i, filename in enumerate(filenames):
+        rsync_queue.put([filename, outnames[i]])
+    rsync_queue.put('END')
     processes = []
-    #processes += [Process(
-    #    target=rsync_handler,
-    #    args=(
-    #        rsync_queue,
-    #        corr_queue,
-    #        nvoltagefiles,
-    #        nvoltagefiles_lock,
-    #        #rsync_done
-    #        ),
-    #    daemon=True
-    #)]
+    processes += [Process(
+        target=rsync_handler,
+        args=(
+            rsync_queue,
+            corr_queue,
+            rsync
+        ),
+        daemon=True
+    )]
     for i in range(NPROC):
         processes += [Process(
             target=corr_handler,
@@ -246,9 +251,6 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
                 deltaf_MHz,
                 corr_queue,
                 uvh5_queue,
-                #corr_done,
-                #nvoltagefiles,
-                #nvoltagefiles_lock,
                 ncorrfiles,
                 ncorrfiles_lock
             ),
@@ -258,7 +260,7 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
         processes += [Process(
             target=uvh5_handler,
             args=(
-                name,
+                candname,
                 declination,
                 tstart,
                 ntint,
@@ -266,7 +268,6 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
                 start_offset,
                 end_offset,
                 uvh5_queue,
-                #uvh5_done,
                 ncorrfiles,
                 ncorrfiles_lock
             ),
@@ -274,22 +275,26 @@ def __main__(name, filelist, ntint, nfint, start_offset, end_offset):
         )]
     for proc in processes:
         proc.start()
-    for proc in processes[:NPROC]:
+    processes[0].join()
+    for i in range(NPROC):
+        corr_queue.put('END')
+    for proc in processes[1:NPROC+1]:
         proc.join()
     print('All corr processes done')
     # We get here
     for i in range(NPROC):
         uvh5_queue.put('END')
-    for proc in processes[NPROC:]:
+    for proc in processes[1+NPROC:]:
         proc.join()
         print('A uvh5 process joined.')
     print('All uvh5 processes done')
     hdf5files = sorted(glob.glob('{0}/{1}_corr??.hdf5'.format(
-        CORRDIR, name
+        T3PARAMS['corrdir'],
+        candname
     )))
     uvh5_to_ms(
         hdf5files,
-        '{0}/{1}'.format(T3PARAMS['msdir'], name)
+        '{0}/{1}'.format(T3PARAMS['msdir'], candname)
     )
 
 if __name__ == '__main__':
@@ -297,9 +302,16 @@ if __name__ == '__main__':
         description='Correlate candidate voltage files.'
     )
     parser.add_argument(
-        'name',
+        'candname',
         type=str,
         help='unique candidate name'
+    )
+    parser.add_argument(
+        '--datestring',
+        type=str,
+        help='datestring of archived candidate',
+        nargs='?',
+        default='current'
     )
     parser.add_argument(
         '--ntint',
@@ -329,12 +341,6 @@ if __name__ == '__main__':
         default=2484,
         help='number of bins from end of correlation to write to ms'
     )
-    parser.add_argument(
-        'filelist',
-        type=str,
-        nargs='+',
-        help='candidate voltage files'
-    )
     args = parser.parse_args()
-    __main__(args.name, args.filelist, ntint=args.ntint, nfint=args.nfint,
+    __main__(args.candname, args.datestring, ntint=args.ntint, nfint=args.nfint,
              start_offset=args.startoffset, end_offset=args.stopoffset)

@@ -1,5 +1,8 @@
 T3corr:
     msdir: '/media/ubuntu/data/dsa110/imaging/'
+    archivedir: '/media/ubuntu/data/dsa110/T3/'
+    corrdir: '/media/ubuntu/ssd/data/'
+    T3dir: '/home/ubuntu/data/T3/'
     npol: 4
     pols: 'XX XY YX YY'
     nchan: 8192 # native
@@ -34,11 +37,44 @@ T3corr:
       - 102
       - 116
       - 103
-      - 1
-      - 2
-      - 3
-      - 4
+      - 12
+      - 11
+      - 10
+      - 9
+      - 8
+      - 7
+      - 6
       - 5
+      - 4
+      - 3
+      - 2
+      - 1
+      - 104
+      - 105
+      - 106
+      - 107
+      - 108
+      - 109
+      - 110
+      - 111
+      - 112
+      - 113
+      - 114
+      - 115
+      - 117
+      - 36
+      - 37
+      - 38
+      - 39
+      - 40
+      - 41
+      - 42
+      - 43
+      - 44
+      - 45
+      - 46
+      - 47
+      - 48
     ch0:
       corr01: 1024
       corr02: 1408
