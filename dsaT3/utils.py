@@ -4,7 +4,6 @@ import subprocess
 import numpy as np
 from influxdb import DataFrameClient
 import astropy.units as u
-from astropy.time import Time
 from astropy.coordinates import Angle
 import dsacalib.constants as ct
 from dsacalib.utils import direction
@@ -65,7 +64,7 @@ def get_declination_mjd(tobs, latitude=ct.OVRO_LAT*u.rad):
         The declination, in degrees or equivalent.
     """
     elevation = get_elevation_mjd(tobs)
-    return get_declination(elevation)
+    return get_declination(elevation, latitude)
 
 def rsync_file(infile, outdir):
     """Rsyncs a file from the correlator machines to dsastorage.
@@ -114,3 +113,29 @@ def get_pointing(obstime):
         obstime=obstime.mjd
     ).J2000()
     return Angle(ra*u.rad).to(u.hourangle), Angle(dec*u.rad).to(u.deg)
+
+def get_beam_ha(ibeam, beam_sep=1*u.arcmin):
+    return beam_sep*(127-ibeam)
+
+def get_beam_ra_dec(obstime, ibeam):
+    """Get ra and dec of beam.
+    
+    Parameters
+    ----------
+    obstime : astropy time object
+        observing time
+    ibeam : int
+        beam id
+    
+    Returns
+    -------
+    tuple
+        Ra, Dec in radians
+    """
+    trigger_dir = direction(
+        'HADEC',
+        get_beam_ha(ibeam).to_value(u.rad),
+        get_declination_mjd(obstime).to_value(u.rad),
+        obstime=obstime
+    )
+    return trigger_dir.J2000()
