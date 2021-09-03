@@ -21,10 +21,11 @@ from mpl_toolkits.axes_grid.inset_locator import inset_axes
 
 import multiprocessing
 from joblib import Parallel, delayed
-
 #import filterbank
 from sigpyproc.Readers import FilReader
 import slack
+
+from get_ephem import get_pointing_mjd
 
 ncpu = multiprocessing.cpu_count() - 1 
 
@@ -239,7 +240,7 @@ def dm_transform(data, dm_max=20,
 def proc_cand_fil(fnfil, dm, ibox, snrheim=-1, 
                   pre_rebin=1, nfreq_plot=64,
                   heim_raw_tres=1, 
-                  rficlean=False, ndm=64):
+                  rficlean=False, ndm=64, norm=True):
     """ Take filterbank file path, preprocess, and 
     plot trigger
 
@@ -290,8 +291,9 @@ def proc_cand_fil(fnfil, dm, ibox, snrheim=-1,
     data = data.reshape(nfreq_plot, data.shape[0]//nfreq_plot, 
                         data.shape[1]).mean(1)
 
-    data = data-np.median(data,axis=1,keepdims=True)
-    data /= np.std(data)
+    if norm:
+        data = data-np.median(data,axis=1,keepdims=True)
+        data /= np.std(data)
 
     return data, datadm, tsdm0, dms, datadm0
 
@@ -413,7 +415,6 @@ def generate_beam_time_arr(fl, ibeam=0, pre_rebin=1,
     nsamp = int(4.0/header['tsamp'])
     nsamp_final = nsamp // (heim_raw_tres*ibox)
     nfreq_final = 1024
-    
 #    beam_time_arr = np.zeros([nbeam, nsamp_final])
     beam_time_arr = np.zeros([nbeam, nfreq_final, nsamp_final])    
     multibeam_dm0ts = 0
@@ -549,7 +550,6 @@ def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
     return not_real
     
 
-
 def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,ndm=32,ntime_plot=64,nfreq_plot=32,save_data=False):
 
     trigname = list(trigger_dict.keys())[0]
@@ -562,6 +562,7 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
     flist.sort()
 
     beamindlist = []
+
     for fnfil in flist:
         beamno = int(fnfil.strip('.fil').split('_')[-1])
         beamindlist.append(beamno)
@@ -579,8 +580,9 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
     else:
         showplot=True
 
-    outstr = (trigname, dm, int(ibox), datestr, int(ibeam), timehr)
-    suptitle = 'specnum:%s  DM:%0.2f  boxcar:%d \n%s ibeam:%d MJD:%f' % outstr
+    ra_mjd, dec_mjd = get_pointing_mjd(timehr)
+    outstr = (trigname, dm, int(ibox), datestr, int(ibeam), timehr, ra_mjd, dec_mjd)
+    suptitle = 'candname:%s  DM:%0.1f  boxcar:%d \n%s ibeam:%d MJD:%f \nRa/Dec=%0.1f,%0.1f' % outstr
 
     figdirout = webPLOTDIR
     fnameout = figdirout+trigname+'.png'
