@@ -12,7 +12,8 @@ if ls /data/dsa110/T1/corr17/${dir}/fil_* 1> /dev/null 2>&1; then
 	outname=$outdir$(basename $fl).done
 	echo $outname
 	if [ ! -f $outname ]; then
-	    snum=`echo $fl | sed 's/\_/ /' | awk '{print $2}'`		
+	    snum=`echo $fl | sed 's/\_/ /' | awk '{print $2}'`
+	    echo $snum
 	    if ls /data/dsa110/T3/corr01/${dir}/*${snum}*.json 1> /dev/null 2>&1; then
 		$python $filplot $dir $snum -s -c
 		touch ${outname}

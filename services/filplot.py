@@ -12,7 +12,7 @@ from scipy import stats
 import numpy as np
 import matplotlib as mpl
 import h5py
-#mpl.use('Agg') # hack
+mpl.use('Agg') # hack
 import matplotlib.pyplot as plt 
 import json
 import glob

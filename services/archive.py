@@ -20,7 +20,6 @@ for fl in fls:
     if de.get('save', False):
         print('Will save voltages for ',de['trigname'])
 
-
 for fl in fls:
 
     f = open(fl)

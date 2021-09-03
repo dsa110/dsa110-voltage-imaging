@@ -32,7 +32,8 @@ docopy = my_ds.get_dict('/cmd/corr/docopy') == 'True'
 datestring = my_ds.get_dict('/cnf/datestring')
 my_ds.add_watch('/cnf/datestring', datestring_func())
 my_ds.add_watch('/cmd/corr/docopy', docopy_func())
-scriptname = resource_filename('dsaT3', 'services/send_cands.bash')
+# scriptname = resource_filename('dsaT3', '../services/send_cands.bash')
+scriptname = '/home/ubuntu/dana/code/dsa110-T3/services/send_cands.bash' #hard code for now
 
 print(datestring)
 print(docopy)
