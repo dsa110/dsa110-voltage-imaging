@@ -86,7 +86,7 @@ def run(a):
         print('Could not make filplot {0} due to {1}'.format(
             output_dict['trigname'],
             type(exception).__name__
-        )))
+        ))
         #LOGGER.error(
         #    "Could not make filplot {0} due to {1}.  Callback:\n{3}".format(
         #        output_dict['trigname'],
@@ -142,7 +142,7 @@ def run_nowait(a):
         print('Could not make filplot {0} due to {1}'.format(
             output_dict['trigname'],
             type(exception).__name__
-        )))
+        ))
         #LOGGER.error(
         #    "Could not make filplot {0} due to {1}.  Callback:\n{3}".format(
         #        output_dict['trigname'],
