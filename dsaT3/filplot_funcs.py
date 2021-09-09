@@ -25,7 +25,8 @@ from joblib import Parallel, delayed
 from sigpyproc.Readers import FilReader
 import slack
 
-from utils import get_pointing_mjd
+from dsaT3 import utils
+from dsaT3.utils import get_pointing_mjd
 
 ncpu = multiprocessing.cpu_count() - 1 
 
