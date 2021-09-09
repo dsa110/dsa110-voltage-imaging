@@ -15,7 +15,7 @@ fls = glob.glob(T3root+datestring+'/*.json')
 for fl in fls:
     f = open(fl)
     de = json.load(f)
-        print('Key <save> not in {0}'.format(fl))
+    print('Key <save> not in {0}'.format(fl))
     # Skip corr node json files without the save key if OoD archives twice
     if de.get('save', False):
         print('Will save voltages for ',de['trigname'])

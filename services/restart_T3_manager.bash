@@ -1,6 +1,4 @@
-#!/bin/bash
-#
-
+#! /usr/bin/env bash
 systemctl --user stop send_cands.service
 systemctl --user stop dask_scheduler.service
 systemctl --user stop dask_worker1.service
