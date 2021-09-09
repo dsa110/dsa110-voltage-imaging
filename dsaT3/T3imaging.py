@@ -433,6 +433,7 @@ def calibrate_T3ms(msname, bfweights, bfdir, dedisp_mask=None):
         msname,
         data='data'
     )
+    print(data.shape)
     data = data.reshape(
         data.shape[0],
         data.shape[1],
