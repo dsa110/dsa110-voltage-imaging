@@ -6,9 +6,15 @@ def local_run(args):
     if args.candidate is not None:
         if args.label is not None:
             try:
-                labels.set_label(args.candidate,args.label)
+                labels.set_label(args.candidate, args.label)
             except:
-                print('Could not set label: ',args.candidate,args.label)
+                print('Could not set label: ', args.candidate, args.label)
+
+        if args.notes is not None:
+            try:
+                labels.set_notes(args.candidate, args.notes)
+            except:
+                print('Could not set notes: ', args.candidate, args.notes)
 
         if args.label=='archive':
             if not args.search:
@@ -22,6 +28,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--candidate', type=str, default=None, help='Candidate name', required=True)
     parser.add_argument('-l', '--label', type=str, default=None, help='Label ('+str(labels._allowed)+')')
+    parser.add_argument('-n', '--notes', type=str, default=None, help='Notes (free form)')
     parser.add_argument('-s', '--search', action='store_true', help='Search for voltage files')
     the_args = parser.parse_args()
     local_run(the_args)

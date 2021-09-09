@@ -58,7 +58,6 @@ def readfile(filename):
         return None
         
 
-
 def writefile(dd, filename):
     """ Write candidate json trigger file with dict
     """
@@ -106,4 +105,18 @@ def set_label(candname, label, filename=None):
     writefile(dd, filename)
         
         
+def set_notes(candname, notes, filename=None):
+    """ Read, add notes, and write candidate json file.
+    Can optionally provide full path to file.
+    Default assumes name of <candname>.json in cwd.
+    TODO: decide if file can have more than one candname.
+    """
 
+    if filename is None:
+        filename = f'/home/ubuntu/data/T3/{candname}.json'
+
+    assert os.path.exists(filename), f'candidate json file {filename} not found'
+
+    dd = readfile(filename)
+    dd['notes'] = notes
+    writefile(dd, filename)
