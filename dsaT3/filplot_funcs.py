@@ -25,7 +25,7 @@ from joblib import Parallel, delayed
 from sigpyproc.Readers import FilReader
 import slack
 
-from get_ephem import get_pointing_mjd
+from utils import get_pointing_mjd
 
 ncpu = multiprocessing.cpu_count() - 1 
 
@@ -282,8 +282,10 @@ def proc_cand_fil(fnfil, dm, ibox, snrheim=-1,
 
     tsdm0 = np.mean(data,axis=0)
 
-    datadm, dms = dm_transform(data, dm_max=dm+250,
-                               dm_min=dm-250, dm0=dm, ndm=ndm, 
+    dm_err = ibox / 1.0 * 25.
+    dm_err = 250.0
+    datadm, dms = dm_transform(data, dm_max=dm+dm_err,
+                               dm_min=dm-dm_err, dm0=dm, ndm=ndm, 
                                freq_ref=None, 
                                downsample=heim_raw_tres*ibox//pre_rebin)
     data = data.dedisperse(dm)
@@ -581,6 +583,16 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
         showplot=True
 
     ra_mjd, dec_mjd = get_pointing_mjd(timehr)
+    ind_near = utils.match_pulsar(ra_mjd, dec_mjd, thresh_deg=3.5)
+
+    psr_txt_str = ''
+    for ind_jj in ind_near:
+        name_psrb = utils.query['PSRB'][ind_jj]
+        name_psrj = utils.query['PSRJ'][ind_jj]
+        dm_psr = utils.query['DM'][ind_jj]
+        psr_txt_str += '%s/%s: %0.1f\n' % (name_psrb, name_psrj, dm_psr)
+
+    print(psr_txt_str)
     outstr = (trigname, dm, int(ibox), datestr, int(ibeam), timehr, ra_mjd, dec_mjd)
     suptitle = 'candname:%s  DM:%0.1f  boxcar:%d \n%s ibeam:%d MJD:%f \nRa/Dec=%0.1f,%0.1f' % outstr
 

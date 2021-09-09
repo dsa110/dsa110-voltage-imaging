@@ -11,6 +11,7 @@ import numpy as np
 import datetime
 from psrqpy import QueryATNF
 from astropy.coordinates import SkyCoord, ITRS, EarthLocation
+from astropy.time import Time
 from dsautils import dsa_store
 from progress.bar import Bar
 import dsacalib.constants as ct
