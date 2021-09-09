@@ -30,7 +30,7 @@ wid = de.add_watch('/mon/corr/1/voltage', cb_func)
 
 # clean up existing triggers
 datestring = de.get_dict('/cnf/datestring')
-trig_jsons = glob.glob('/data/dsa110/T2/'+datestring+'/cluster_output*.json')
+trig_jsons = sorted(glob.glob('/data/dsa110/T2/'+datestring+'/cluster_output*.json'))
 for fl in trig_jsons:
     f = open(fl)
     d = json.load(f)
