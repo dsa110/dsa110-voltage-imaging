@@ -83,19 +83,15 @@ def run(a):
     try:
         output_dict['candplot'] = filf.filplot_entry(datestring,a)
     except Exception as exception:
-        print('Could not make filplot {0} due to {1}'.format(
+        logging_string = "Could not make filplot {0} due to {1}.  Callback:\n{2}".format(
             output_dict['trigname'],
-            type(exception).__name__
-        ))
-        #LOGGER.error(
-        #    "Could not make filplot {0} due to {1}.  Callback:\n{3}".format(
-        #        output_dict['trigname'],
-        #        type(exception).__name__,
-        #        ''.join(
-        #            traceback.format_tb(exception.__traceback__)
-        #        )
-        #    )
-        #)
+            type(exception).__name__,
+            ''.join(
+                traceback.format_tb(exception.__traceback__)
+            )
+        )
+        print(logging_string)
+        LOGGER.error(logging_string)
         #with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'
         #    json.dump(output_dict, f, ensure_ascii=False, indent=4)
 
@@ -139,19 +135,15 @@ def run_nowait(a):
     try:
         output_dict['candplot'] = filf.filplot_entry(datestring,a)
     except Exception as exception:
-        print('Could not make filplot {0} due to {1}'.format(
+        logging_string = "Could not make filplot {0} due to {1}.  Callback:\n{2}".format(
             output_dict['trigname'],
-            type(exception).__name__
-        ))
-        #LOGGER.error(
-        #    "Could not make filplot {0} due to {1}.  Callback:\n{3}".format(
-        #        output_dict['trigname'],
-        #        type(exception).__name__,
-        #        ''.join(
-        #            traceback.format_tb(exception.__traceback__)
-        #        )
-        #    )
-        #)
+            type(exception).__name__,
+            ''.join(
+                traceback.format_tb(exception.__traceback__)
+            )
+        )
+        print(logging_string)
+        LOGGER.error(logging_string)
         
         #with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'
         #    json.dump(output_dict, f, ensure_ascii=False, indent=4)
