@@ -1,5 +1,7 @@
+import traceback
 import numpy as np
 from dsautils import dsa_store
+import dsautils.dsa_syslog as dsl
 from dsaT3 import filplot_funcs as filf
 ds = dsa_store.DsaStore()
 import time, os
@@ -10,6 +12,11 @@ TIMEOUT_CORR = 21600
 FILPATH = '/data/dsa110/T1/'
 OUTPUT_PATH = '/home/ubuntu/data/T3/'
 FIL_CORRS = ['corr01','corr02','corr09','corr13']
+
+LOGGER = dsl.DsaSyslogger()
+LOGGER.subsystem("software")
+LOGGER.app("dsaT3")
+LOGGER.function("T3_manager")
 
 # fills output_dict with empty entries
 def fill_empty_dict(od):
@@ -61,11 +68,12 @@ def run(a):
     corrXX = FIL_CORRS[int( (ibeam-1) / 64)]
     filfile = '/data/dsa110/T1/' + corrXX + '/' + datestring + '/fil_' + output_dict['trigname'] + '/' + output_dict['trigname'] +	'_' + str(ibeam) + '.fil'
     print(filfile)
+    LOGGER.info('Working on {0}'.format(output_dict['trigname']))
     found_filfile = wait_for_local_file(filfile,TIMEOUT_FIL)
     output_dict['filfile'] = found_filfile
 
     if found_filfile is None:
-
+        LOGGER.error('No filfile for {0}'.format(output_dict['trigname']))
         #with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'
         #    json.dump(output_dict, f, ensure_ascii=False, indent=4)
         
@@ -74,8 +82,16 @@ def run(a):
     # launch candplotter
     try:
         output_dict['candplot'] = filf.filplot_entry(datestring,a)
-    except:
-        print('Could not make filplot '+output_dict['trigname'])
+    except Exception as exception:
+        logging_string = "Could not make filplot {0} due to {1}.  Callback:\n{2}".format(
+            output_dict['trigname'],
+            type(exception).__name__,
+            ''.join(
+                traceback.format_tb(exception.__traceback__)
+            )
+        )
+        print(logging_string)
+        LOGGER.error(logging_string)
         #with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'
         #    json.dump(output_dict, f, ensure_ascii=False, indent=4)
 
@@ -105,10 +121,12 @@ def run_nowait(a):
     corrXX = FIL_CORRS[int( (ibeam-1) / 64)]
     filfile = '/data/dsa110/T1/' + corrXX + '/' + datestring + '/fil_' + output_dict['trigname'] + '/' + output_dict['trigname'] +	'_' + str(ibeam) + '.fil'
     print(filfile)
+    LOGGER.info('Working on {0}'.format(output_dict['trigname']))
     found_filfile = search_for_local_file(filfile)
     output_dict['filfile'] = found_filfile
 
     if found_filfile is None:
+        LOGGER.error('No filfile for {0}'.format(output_dict['trigname']))
         #with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'
         #    json.dump(output_dict, f, ensure_ascii=False, indent=4)
         return output_dict
@@ -116,8 +134,17 @@ def run_nowait(a):
     # launch candplotter
     try:
         output_dict['candplot'] = filf.filplot_entry(datestring,a)
-    except:
-        print('Could not make filplot '+output_dict['trigname'])
+    except Exception as exception:
+        logging_string = "Could not make filplot {0} due to {1}.  Callback:\n{2}".format(
+            output_dict['trigname'],
+            type(exception).__name__,
+            ''.join(
+                traceback.format_tb(exception.__traceback__)
+            )
+        )
+        print(logging_string)
+        LOGGER.error(logging_string)
+        
         #with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'
         #    json.dump(output_dict, f, ensure_ascii=False, indent=4)
 

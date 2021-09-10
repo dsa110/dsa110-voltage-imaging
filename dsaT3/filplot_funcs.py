@@ -25,7 +25,8 @@ from joblib import Parallel, delayed
 from sigpyproc.Readers import FilReader
 import slack
 
-from utils import get_pointing_mjd
+from dsaT3 import utils
+from dsaT3.utils import get_pointing_mjd
 
 ncpu = multiprocessing.cpu_count() - 1 
 
@@ -593,7 +594,7 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
         psr_txt_str += '%s/%s: %0.1f\n' % (name_psrb, name_psrj, dm_psr)
 
     print(psr_txt_str)
-    outstr = (trigname, dm, int(ibox), datestr, int(ibeam), timehr, ra_mjd, dec_mjd)
+    outstr = (trigname, dm, int(ibox), datestr, int(ibeam), timehr, ra_mjd.value, dec_mjd.value)
     suptitle = 'candname:%s  DM:%0.1f  boxcar:%d \n%s ibeam:%d MJD:%f \nRa/Dec=%0.1f,%0.1f' % outstr
 
     figdirout = webPLOTDIR
