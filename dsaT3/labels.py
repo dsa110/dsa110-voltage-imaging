@@ -4,7 +4,7 @@ import numpy as np
 import subprocess
 import pipes
 
-_allowed = ['astrophysical', 'instrumental', 'unsure/noise', 'rfi', 'archive']
+_allowed = ['astrophysical', 'instrumental', 'unsure/noise', 'rfi', 'archive', '']
 
 def exists_remote(host, path):
     """Test if a file exists at path on a host accessible with SSH."""
