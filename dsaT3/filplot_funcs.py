@@ -213,7 +213,7 @@ def plotfour(dataft, datats, datadmt,
         plt.savefig(figname_out)
     if showplot:
         plt.show()
-
+    plt.close(fig)
     return not_real
         
 def dm_transform(data, dm_max=20,
@@ -584,18 +584,18 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
         showplot=True
 
     ra_mjd, dec_mjd = get_pointing_mjd(timehr)
-    ind_near = utils.match_pulsar(ra_mjd, dec_mjd, thresh_deg=3.5)
+    l, b = utils.get_galcoord(ra_mjd.value, dec_mjd.value)
+#    ind_near = utils.match_pulsar(ra_mjd, dec_mjd, thresh_deg=3.5)
 
-    psr_txt_str = ''
-    for ind_jj in ind_near:
-        name_psrb = utils.query['PSRB'][ind_jj]
-        name_psrj = utils.query['PSRJ'][ind_jj]
-        dm_psr = utils.query['DM'][ind_jj]
-        psr_txt_str += '%s/%s: %0.1f\n' % (name_psrb, name_psrj, dm_psr)
+#    psr_txt_str = ''
+#    for ind_jj in ind_near:
+#        name_psrb = utils.query['PSRB'][ind_jj]
+#        name_psrj = utils.query['PSRJ'][ind_jj]
+#        dm_psr = utils.query['DM'][ind_jj]
+#        psr_txt_str += '%s/%s: %0.1f\n' % (name_psrb, name_psrj, dm_psr)
 
-    print(psr_txt_str)
-    outstr = (trigname, dm, int(ibox), datestr, int(ibeam), timehr, ra_mjd.value, dec_mjd.value)
-    suptitle = 'candname:%s  DM:%0.1f  boxcar:%d \n%s ibeam:%d MJD:%f \nRa/Dec=%0.1f,%0.1f' % outstr
+    outstr = (trigname, dm, int(ibox), datestr, int(ibeam), timehr, ra_mjd.value, dec_mjd.value, l, b)
+    suptitle = 'candname:%s  DM:%0.1f  boxcar:%d \n%s ibeam:%d MJD:%f \nRa/Dec=%0.1f,%0.1f Gal lon/lat=%0.1f,%0.1f' % outstr
 
     figdirout = webPLOTDIR
     fnameout = figdirout+trigname+'.png'
