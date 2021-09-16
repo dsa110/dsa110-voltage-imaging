@@ -2,7 +2,7 @@ from setuptools import setup
 from dsautils.version import get_git_version
 
 setup(name='dsa110-T3',
-      version='1.0.1',
+      version=get_git_version(),
       url='http://github.com/dsa110/dsa110-T3/',
       author='Dana Simard',
       author_email='dana.simard@astro.caltech.edu',
