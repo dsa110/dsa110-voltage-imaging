@@ -131,6 +131,10 @@ def get_pointing_now():
     
     return ra_now*u.deg, dec_now*u.deg, tnow.mjd
 
+def get_galcoord(ra, dec):
+    c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
+    galcoord = c.galactic
+    return galcoord.l.deg, galcoord.b.deg
 
 def match_pulsar(RA_mjd, Dec_mjd, thresh_deg=3.5):
     RA_psr, Dec_psr, DM = np.array(query['RAJ']), np.array(query['DECJ']), np.array(query['DM'])
