@@ -4,7 +4,7 @@ import numpy as np
 import subprocess
 import pipes
 
-_allowed = ['astrophysical', 'instrumental', 'unsure/noise', 'rfi', 'archive', '']
+_allowed = ['astrophysical', 'instrumental', 'unsure/noise', 'rfi', 'save', '']
 
 def exists_remote(host, path):
     """Test if a file exists at path on a host accessible with SSH."""
@@ -98,7 +98,7 @@ def set_label(candname, label, filename=None):
 
     dd = readfile(filename)
 
-    if label == 'archive':
+    if label == 'save':
         dd['save'] = True
     else:
         dd['label'] = label
