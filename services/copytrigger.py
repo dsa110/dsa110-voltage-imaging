@@ -31,11 +31,11 @@ DATESTRING = ETCD.get_dict('/cnf/datestring')
 RSYNC_Q = Queue()
 GATHER_Q = Queue()
 ASSESS_Q = Queue()
-MAX_ASSESS = 4
-MAX_WAIT = 5*60
+MAX_ASSESS = 100
+MAX_WAIT = 30*60
 TSLEEP = 10
 
-T3ROOT = '/media/ubuntu/data/dsa110/T3/'
+T3ROOT = '/media/ubuntu/ssd/T3/'
 
 def change_datestring(newstring: str):
     """Updates the current datestring.
@@ -78,11 +78,11 @@ def rsync_handler(inqueue: Queue = RSYNC_Q, outqueue: Queue = GATHER_Q):
             trigger = payload['trigger']
             candname = next(iter(trigger))
             outheader = rsync_file(
-                f'{corrname}:/home/ubuntu/data/{candname}_header.json',
+                f'{corrname}.sas.pvt:/home/ubuntu/data/{candname}_header.json',
                 f'{T3ROOT}{DATESTRING}/{corrname}_{candname}_header.json'
             )
             outdata = rsync_file(
-                f'{corrname}:/home/ubuntu/data/{candname}_data.out',
+                f'{corrname}.sas.pvt:/home/ubuntu/data/{candname}_data.out',
                 f'{T3ROOT}{DATESTRING}/{corrname}_{candname}_data.out'
             )
             payload['header_file'] = outheader
@@ -167,8 +167,8 @@ def gather_files(inqueue: Queue, outqueue: Queue, ncorr: int = NCORR, max_assess
                 gather_processes[nfiles_assessed%max_assess].start()
                 nfiles_assessed += 1
             gather_queues[
-                candname
-            ].put([payload])
+                gather_names.index(candname)
+            ].put(payload)
         else:
             time.sleep(tsleep)
 
@@ -228,6 +228,7 @@ if __name__ == "__main__":
                     )
             while not ASSESS_Q.empty():
                 final_payload = ASSESS_Q.get()
+                print(final_payload)
                 ETCD.put_dict(
                     '/mon/corr/1/voltagecopy',
                     final_payload

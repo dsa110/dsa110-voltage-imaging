@@ -162,7 +162,7 @@ def rsync_file(infile, outfile):
     str
         The full path to the rsynced file in its destination.
     """
-    command = '. ~/.keychain/lxd110h23-sh ; rsync -avvP --inplace {0} {1}'.format(infile, outfile)
+    command = 'rsync -avvP --inplace {0} {1}'.format(infile, outfile)
     process = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
