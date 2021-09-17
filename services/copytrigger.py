@@ -61,27 +61,6 @@ def copy_voltage_file(payload: dict, queue: Queue = RSYNC_Q):
     """
     queue.put(payload)
 
-def task_handler(task_fn: Callable, inqueue: Queue, outqueue: Queue = None, tsleep: int = TSLEEP):
-    """Handles in and out queues of preprocessing tasks.
-
-    Parameters
-    ----------
-    task_fn
-        The function to execute, with a single argument.
-    inqueue
-        The queue containing the arguments to `task_fn`.
-    outqueue
-        The queue to write the otuput of `task_fn` to.
-    """
-    while True:
-        if not inqueue.empty():
-            fname = inqueue.get()
-            fname = task_fn(fname)
-            if outqueue is not None:
-                outqueue.put(fname)
-        else:
-            time.sleep(tsleep)
-
 def rsync_handler(inqueue: Queue = RSYNC_Q, outqueue: Queue = GATHER_Q):
     """Monitors the rsync queue and rsyncs files.
 
@@ -210,19 +189,16 @@ if __name__ == "__main__":
     ETCD.add_watch('/mon/corr/1/voltage', copy_voltage_file)
     ETCD.add_watch('/cnf/datestring', change_datestring)
     # Start all threads
-    for name in processes.keys():
-        for i in range(processes[name]['nthreads']):
-            processes[name]['processes'] += [Process(
-                target=task_handler,
-                args=(
-                    processes[name]['task_fn'],
-                    processes[name]['queue'],
-                    processes[name]['outqueue'],
-                ),
-                daemon=True
-            )]
-        for pinst in processes[name]['processes']:
-            pinst.start()
+    processes['rsync']['processes'] += [Process(
+        target=rsync_handler,
+        args=(
+            processes['rsync']['queue'],
+            processes['rsync']['outqueue'],
+        ),
+        daemon=True
+    )]
+    for pinst in processes['rsync']['processes']:
+        pinst.start()
 
     try:
         processes['gather'] = {
