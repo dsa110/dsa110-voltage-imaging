@@ -553,7 +553,7 @@ def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
     return not_real
     
 
-def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,ndm=32,ntime_plot=64,nfreq_plot=32,save_data=False):
+def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,ndm=32,ntime_plot=64,nfreq_plot=32,save_data=False,fllisting=None):
 
     trigname = list(trigger_dict.keys())[0]
     dm = trigger_dict[trigname]['dm']
@@ -561,22 +561,29 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
     ibeam = trigger_dict[trigname]['ibeam'] + 1
     timehr = trigger_dict[trigname]['mjds']
     snr = trigger_dict[trigname]['snr']    
-    flist = glob.glob(BASEDIR+'/T1/corr*/'+datestr+'/fil_%s/*.fil' % trigname)
-    flist.sort()
 
-    beamindlist = []
+    if fllisting is None:
 
-    for fnfil in flist:
-        beamno = int(fnfil.strip('.fil').split('_')[-1])
-        beamindlist.append(beamno)
-        if beamno==ibeam:
-            fname = fnfil
-    flist_=[]
+        flist = glob.glob(BASEDIR+'/T1/corr*/'+datestr+'/fil_%s/*.fil' % trigname)
+        flist.sort()
 
-    # reorder the filename list in beam number
-    for ii in range(len(flist)):
-        flist_.append(flist[np.where(np.array(beamindlist)==ii)[0][0]])
-    flist = flist_
+        beamindlist = []
+
+        for fnfil in flist:
+            beamno = int(fnfil.strip('.fil').split('_')[-1])
+            beamindlist.append(beamno)
+            if beamno==ibeam:
+                fname = fnfil
+        flist_=[]
+
+        # reorder the filename list in beam number
+        for ii in range(len(flist)):
+            flist_.append(flist[np.where(np.array(beamindlist)==ii)[0][0]])
+        flist = flist_
+
+    else:
+         flist = fllisting
+         fname = fllisting[ibeam]
 
     if toslack:
         showplot=False
@@ -625,4 +632,4 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
         client = slack.WebClient(token=slack_token);
         client.files_upload(channels='candidates',file=fnameout,initial_comment=fnameout);
 
-    return fnameout
+    return fnameout,not_real
