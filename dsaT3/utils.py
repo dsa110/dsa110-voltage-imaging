@@ -130,8 +130,8 @@ def get_pointing_now():
     return ra_now*u.deg, dec_now*u.deg, tnow.mjd
 
 def get_galcoord(ra, dec):
-    _coord = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
-    galcoord = c.galactic
+    coord = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
+    galcoord = coord.galactic
     return galcoord.l.deg, galcoord.b.deg
 
 def match_pulsar(RA_mjd, Dec_mjd, thresh_deg=3.5):

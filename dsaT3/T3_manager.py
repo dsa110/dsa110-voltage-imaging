@@ -2,8 +2,8 @@ import traceback
 import numpy as np
 from dsautils import dsa_store
 import dsautils.dsa_syslog as dsl
-#from dsaT3 import filplot_funcs as filf
-import filplot_funcs as filf 
+from dsaT3 import filplot_funcs as filf
+#import filplot_funcs as filf 
 ds = dsa_store.DsaStore()
 import time, os
 import json
@@ -21,7 +21,7 @@ LOGGER.app("dsaT3")
 LOGGER.function("T3_manager")
 
 # fills output_dict with empty entries
-def fill_empty_dict(od, emptyCorrs=True):
+def fill_empty_dict(od, emptyCorrs=True, correctCorrs=False):
 
     od['filfile'] = None
     od['candplot'] = None
@@ -31,7 +31,14 @@ def fill_empty_dict(od, emptyCorrs=True):
             od[corr+'_data'] = None
             od[corr+'_header'] = None
 
+    if correctCorrs is True:
+        for corr in ['corr03','corr04','corr05','corr06','corr07','corr08','corr10','corr11','corr12','corr14','corr15','corr16','corr18','corr19','corr21','corr22']:
+            if od[corr+'_data'] is not None:
+                od[corr+'_data'] = od[corr+'_data'][:-19]
+            if od[corr+'_header'] is not None:
+                od[corr+'_header'] = od[corr+'_header'][:-22]
 
+        
 # searches for local file
 def search_for_local_file(fl):
 
@@ -208,7 +215,7 @@ def run_copied(a):
     output_dict = a[list(a.keys())[0]]
     output_dict['trigname'] = list(a.keys())[0]
     output_dict['datestring'] = datestring
-    fill_empty_dict(output_dict, emptyCorrs=False)
+    fill_empty_dict(output_dict, emptyCorrs=False, correctCorrs=True)
 
     # make and merge filterbank files
     flist = make_filterbanks(output_dict)
