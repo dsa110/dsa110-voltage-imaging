@@ -26,6 +26,7 @@ def fill_empty_dict(od, emptyCorrs=True, correctCorrs=False):
     od['filfile'] = None
     od['candplot'] = None
     od['save'] = False
+    od['label'] = None
     if emptyCorrs is True:
         for corr in ['corr03','corr04','corr05','corr06','corr07','corr08','corr10','corr11','corr12','corr14','corr15','corr16','corr18','corr19','corr21','corr22']:
             od[corr+'_data'] = None
@@ -215,7 +216,7 @@ def run_copied(a):
     output_dict = a[list(a.keys())[0]]
     output_dict['trigname'] = list(a.keys())[0]
     output_dict['datestring'] = datestring
-    fill_empty_dict(output_dict, emptyCorrs=False, correctCorrs=True)
+    fill_empty_dict(output_dict, emptyCorrs=False)
 
     # make and merge filterbank files
     flist = make_filterbanks(output_dict)
@@ -246,6 +247,28 @@ def run_copied(a):
     # write output_dict to disk
     with open(OUTPUT_PATH + output_dict['trigname'] + '.json', 'w') as f: #encoding='utf-8'                  
         json.dump(output_dict, f, ensure_ascii=False, indent=4)
+
+    return output_dict
+
+# to scp files
+def copy(a):
+
+    # make dir
+    datestring = ds.get_dict('/cnf/datestring')
+    odir = "/media/ubuntu/ssd/T3/"+datestring+"/"
+    os.system("mkdir -p "+odir)
+
+    # scp file
+    corrname = a[list(a.keys())[0]]
+    b = a[list(a.keys())[1]]
+    output_dict = b[list(b.keys())[0]]
+    output_dict['trigname'] = list(b.keys())[0]
+    output_dict['datestring'] = datestring
+    output_dict['corrname'] = corrname
+    cmd = "scp "+corrname+".sas.pvt:/home/ubuntu/data/"+output_dict['trigname']+"_header.json "+odir+corrname+"_"+output_dict['trigname']+"_header.json"
+    os.system(cmd)
+    cmd = "scp "+corrname+".sas.pvt:/home/ubuntu/data/"+output_dict['trigname']+"_data.out "+odir+corrname+"_"+output_dict['trigname']+"_data.out"
+    os.system(cmd)
 
     return output_dict
 
