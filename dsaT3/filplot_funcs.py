@@ -108,22 +108,26 @@ def plotfour(dataft, datats, datadmt,
                            'snr_dm0_allbeam' : []}
     datats /= np.std(datats[datats!=np.max(datats)])
     nfreq, ntime = dataft.shape
-    xminplot,xmaxplot = 200,800 # milliseconds
+    xminplot,xmaxplot = 500.-300*ibox/16.,500.+300*ibox/16 # milliseconds
     dm_min, dm_max = dms[0], dms[1]
     tmin, tmax = 0., 1e3*dataft.header['tsamp']*ntime
     freqmax = dataft.header['fch1']
     freqmin = freqmax + dataft.header['nchans']*dataft.header['foff']
+    freqs = np.linspace(freqmin, freqmax, nfreq)
     tarr = np.linspace(tmin, tmax, ntime)
     fig = plt.figure(figsize=(8,10))
 
     plt.subplot(321)
     extentft=[tmin,tmax,freqmin,freqmax]
     plt.imshow(dataft, aspect='auto',extent=extentft, interpolation='nearest')
+    DM0_delays = xminplot + dm * 4.15E6 * (freqmin**-2 - freqs**-2)
+    plt.plot(DM0_delays, freqs, c='r', lw='2', alpha=0.35)
     plt.xlim(xminplot,xmaxplot)
     plt.xlabel('Time (ms)')
     plt.ylabel('Freq (MHz)')
     if prob!=-1:
-        plt.text(xminplot+50,0.5*(freqmax+freqmin),"Prob=%0.2f" % prob, color='white', fontweight='bold')
+        plt.text(xminplot+50*ibox/16.,0.5*(freqmax+freqmin),
+                 "Prob=%0.2f" % prob, color='white', fontweight='bold')
         classification_dict['prob'] = prob
     plt.subplot(322)
     extentdm=[tmin, tmax, dm_min, dm_max]
@@ -138,7 +142,7 @@ def plotfour(dataft, datats, datadmt,
     plt.xlabel('Time (ms)')
     plt.ylabel(r'Power ($\sigma$)')
     plt.xlim(xminplot,xmaxplot)
-    plt.text(0.55*(tmin+1000.), 0.5*(max(datats)+np.median(datats)), 
+    plt.text(0.51*(xminplot+xmaxplot), 0.5*(max(datats)+np.median(datats)), 
             'Heimdall S/N : %0.1f\nHeimdall DM : %d\
             \nHeimdall ibox : %d\nibeam : %d' % (heimsnr,dm,ibox,ibeam), 
             fontsize=8, verticalalignment='center')
@@ -147,7 +151,7 @@ def plotfour(dataft, datats, datadmt,
     if beam_time_arr is None:
         plt.xticks([])
         plt.yticks([])
-        plt.text(0.20, 0.55, 'Multibeam info\nunder construction',
+        plt.text(0.20, 0.55, 'Multibeam info\n not available',
                 fontweight='bold')
     else:
         parent_axes.imshow(beam_time_arr[::-1], aspect='auto', extent=[tmin, tmax, 0, beam_time_arr.shape[0]], 
