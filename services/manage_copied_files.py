@@ -9,6 +9,8 @@ odir = "/media/ubuntu/ssd/T3/"+datestring
 MEMFL = "/home/ubuntu/data/T3/management.json"
 os.system("rm -rf "+MEMFL)
 TRIGGER_WAIT = 1800./86400.
+FSIZE = 5945425920
+MIN_CT = 8
 
 # a is file name
 def extract_cand_from_json(a):
@@ -40,8 +42,9 @@ def update_mem(MEM,cname):
 
         fl = odir+"/"+corr+"_"+cname+"_data.out"
         if os.path.exists(fl):
-            MEM[cname][cname][corr+'_data'] = fl
-            ct += 1
+            if os.path.getsize(fl)==FSIZE:
+                MEM[cname][cname][corr+'_data'] = fl
+                ct += 1
         fl = odir+"/"+corr+"_"+cname+"_header.json"
         if os.path.exists(fl):
             MEM[cname][cname][corr+'_header'] = fl
@@ -95,9 +98,10 @@ while True:
                 
         # send trigger onwards if 30 min have passed since entry was created
         if dsa_functions36.current_mjd()-MEM[cname+'_mjd'] > TRIGGER_WAIT:
-            if MEM[cname+'_trigger'] is False:
-                de.put_dict('/mon/corr/1/voltagecopy',MEM[cname])
-                MEM[cname+'_trigger'] = True
+            if MEM[cname+'_ct']>=MIN_CT:
+                if MEM[cname+'_trigger'] is False:
+                    de.put_dict('/mon/corr/1/voltagecopy',MEM[cname])
+                    MEM[cname+'_trigger'] = True
             
 
     # write MEM to disk and sleep

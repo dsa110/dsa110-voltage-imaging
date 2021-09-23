@@ -4,6 +4,7 @@ from dsautils import dsa_store
 from dsaT3 import T3_manager
 import glob, os, json
 from dsautils import dsa_functions36
+import numpy as np
 
 client = Client('10.42.0.232:8786')
 de = dsa_store.DsaStore()
