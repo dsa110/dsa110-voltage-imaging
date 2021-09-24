@@ -15,7 +15,7 @@ import yaml
 from pkg_resources import resource_filename
 from astropy.time import Time
 import astropy.units as u
-from dsautils.coordinates import get_declination
+from dsautils.coordinates import get_declination, get_elevation
 from dsaT3.utils import rsync_file
 from dsaT3.T3imaging import generate_T3_uvh5
 from dsacalib.ms_io import uvh5_to_ms
@@ -145,8 +145,8 @@ def uvh5_handler(
                 end_offset=end_offset
             )
             print(uvh5name)
-            #for value in corr_files.values():
-            #    os.remove(value)
+            for value in corr_files.values():
+                os.remove(value)
             with ncorrfiles_lock:
                 ncorrfiles.value -= 1
     print('{0} exiting'.format(proc.pid))
@@ -218,7 +218,9 @@ def __main__(candname, datestring, ntint, nfint, start_offset, end_offset):
         metadata = json.load(jsonf)
     tstart = Time(metadata['mjds'], format='mjd')
     try:
-        declination = get_declination(tstart)
+        declination = get_declination(
+            get_elevation(tstart)
+        )
     except ConnectionError:
         declination = 54.58209895*u.deg
     deltat_ms = ntint*T3PARAMS['deltat_s']*1e3

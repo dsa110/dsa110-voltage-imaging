@@ -21,19 +21,10 @@ setup(name='dsa110-T3',
                         'scipy',
                         'etcd3',
                         'structlog',
-                        'dsa110-pyutils',
-                        'dsa110-meridian-fs',
-                        'dsa110-calib',
                         'sigpyproc',
                         'slack',
                         'slackclient',
                         'tensorflow==2.5.0',
                         'psrqpy'
       ],
-      dependency_links = [
-          "https://github.com/dsa110/dsa110-antpos/tarball/master#egg=dsa110-antpos",
-          "https://github.com/dsa110/dsa110-pyutils/tarball/master#egg=dsa110-pyutils",
-          "https://github.com/dsa110/dsa110-meridian-fs/tarball/main#egg=dsa110-meridian-fs",
-          "https://github.com/dsa110/dsa110-calib/tarball/main#egg=dsa110-calib",
-      ]
 )

@@ -8,6 +8,7 @@ import numpy as np
 from pkg_resources import resource_filename
 import matplotlib.pyplot as plt
 import astropy.units as u
+import astropy.constants as c
 from astropy.coordinates import Angle
 from antpos.utils import get_itrf
 from pyuvdata import UVData
@@ -24,6 +25,7 @@ PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 with open(PARAMFILE) as YAMLF:
     T3PARAMS = yaml.load(YAMLF, Loader=yaml.FullLoader)['T3corr']
 
+# TODO: use antenna_order from cnf
 MYCONF = cnf.Conf()
 CORRPARAMS = MYCONF.get('corr')
 MFSPARAMS = MYCONF.get('fringe')
@@ -201,8 +203,6 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
         start_offset = 0
     if end_offset is None:
         end_offset = len(tobs)
-    #assert start_offset is not None
-    #assert end_offset is not None
     tobs = tobs[start_offset:end_offset]
     blen, bname = get_blen(params['antennas'])
     itemspframe = nbls*params['nchan_corr']*params['npol']*2
@@ -210,20 +210,21 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
     itemspblock = itemspframe*framespblock
     assert (end_offset - start_offset)%framespblock == 0
     nblocks = (end_offset-start_offset)//framespblock
+
     # Get outrigger delays
     delays = np.zeros(len(bname), dtype=np.int)
     for i, bn in enumerate(bname):
         ant1, ant2 = bn.split('-')
         delays[i] = MFSPARAMS['outrigger_delays'].get(int(ant1), 0)-\
                     MFSPARAMS['outrigger_delays'].get(int(ant2), 0)
-    for corr, corrfile in filelist.items(): # corr, ch0 in params['ch0'].items():
+
+    # Process each corr node separately
+    for corr, corrfile in filelist.items():
         ch0 = params['ch0'][corr]
         fobs_corr_full = fobs[ch0:(ch0+params['nchan_corr'])]
         fobs_corr = np.median(fobs_corr_full.reshape(-1, nfint), axis=-1)
         outname = '{1}_{0}.hdf5'.format(corr, name)
-        vis_model = np.exp(2j*np.pi*fobs_corr_full[:, np.newaxis]*
-                    delays[np.newaxis, :, np.newaxis, np.newaxis])
-        vis_model = vis_model.astype(np.complex64)
+
         with h5py.File(outname, 'w') as fhdf5:
             initialize_uvh5_file(
                 fhdf5,
@@ -238,17 +239,6 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                 if start_offset is not None:
                     cfhandler.seek(start_offset*32*itemspframe)
                 for i in range(nblocks):
-                    data = np.fromfile(
-                        cfhandler,
-                        dtype=np.float32,
-                        count=itemspblock
-                    )
-                    data = data.reshape(-1, 2)
-                    data = data[..., 0] + 1.j*data[..., 1]
-                    data = data.reshape(framespblock, nbls, len(fobs_corr_full), params['npol'])[..., [0, -1]]
-                    data /= vis_model
-                    if nfint > 1:
-                        data = data.reshape(framespblock, nbls, len(fobs_corr), nfint, 2).mean(axis=3)
                     bu, bv, bw = calc_uvw(
                         blen,
                         tobs.mjd[i*framespblock:(i+1)*framespblock],
@@ -257,6 +247,20 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                         np.ones(framespblock)*pt_dec
                     )
                     buvw = np.array([bu, bv, bw]).T
+                    data = np.fromfile(
+                        cfhandler,
+                        dtype=np.float32,
+                        count=itemspblock
+                    )
+                    data = data.reshape(-1, 2)
+                    data = data[..., 0] + 1.j*data[..., 1]
+                    data = data.reshape(framespblock, nbls, len(fobs_corr_full), params['npol'])[..., [0, -1]]
+                    total_delay = (delays[np.newaxis, :]+(buvw[..., 2]*u.m/c.c).to_value(u.nanosecond))[:, :, np.newaxis, np.newaxis]
+                    vis_model = np.exp(2j*np.pi*fobs_corr_full[:, np.newaxis]*total_delay)
+                    vis_model = vis_model.astype(np.complex64)
+                    data /= vis_model
+                    if nfint > 1:
+                        data = data.reshape(framespblock, nbls, len(fobs_corr), nfint, 2).mean(axis=3)
                     update_uvh5_file(
                         fhdf5,
                         data.astype(np.complex64),
