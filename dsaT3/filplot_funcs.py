@@ -27,6 +27,7 @@ import slack
 
 from dsaT3 import utils
 from dsaT3.utils import get_pointing_mjd
+from event import labels
 
 ncpu = multiprocessing.cpu_count() - 1 
 
@@ -460,12 +461,41 @@ def generate_beam_time_arr(fl, ibeam=0, pre_rebin=1,
 
     return beam_time_arr, multibeam_dm0ts, beamno_arr
 
+def classify_freqtime(fnmodel, dataft):
+    """ Function to classify dynspec of candidate. 
+    fnmodel can either be a string with the path to
+    the keras model or the model itself. 
+    """
+    if type(fnmodel)==str:
+        from keras.models import load_model
+        fnmodel=MLMODELPATH
+        model = load_model(fnmodel)
+    else:
+        model = fnmodel
+        
+    mm = np.argmax(dataft.mean(0))
+    tlow, thigh = mm-32, mm+32
+    if mm<32:
+        tlow=0
+        thigh=64
+    if thigh>dataft.shape[1]:
+        thigh=dataft.shape[1]
+        tlow=thigh-64
+    dataml = dataft[:,tlow:thigh]
+    dataml -= np.median(dataml, axis=1, keepdims=True)
+    dataml /= np.std(dataml, axis=-1)[:, None]
+    dataml[dataml!=dataml] = 0.0
+    dataml = dataml[None,..., None]
+    prob = model.predict(dataml)[0,1]
+
+    return prob
+
 
 def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
              ndm=32, suptitle='', heimsnr=-1,
              ibeam=-1, rficlean=True, nfreq_plot=32, 
              classify=False, heim_raw_tres=1, 
-             showplot=True, save_data=False):
+             showplot=True, save_data=False, candname=None):
     """ Vizualize FRB candidates on DSA-110
     """
 #    if type(multibeam)==list:
@@ -508,8 +538,14 @@ def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
                                                pre_rebin=1, nfreq_plot=nfreq_plot,
                                                ndm=ndm, rficlean=rficlean,
                                                heim_raw_tres=heim_raw_tres)
+
+    if classify:
+        prob = classify_freqtime(MLMODELPATH, dataft)
+    else:
+        prob = -1
     
     if classify:
+        pass
         from keras.models import load_model
         fnmodel=MLMODELPATH
         model = load_model(fnmodel)
@@ -526,10 +562,17 @@ def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
         dataml /= np.std(dataml, axis=-1)[:, None]
         dataml[dataml!=dataml] = 0.0
         dataml = dataml[None,..., None]
+        print(dataml.shape)
         prob = model.predict(dataml)[0,1]
     else:
         prob = -1
-        
+
+    try:
+        if candname != None:
+            labels.set_probability(webPLOTDIR+candname, prob, filename=None)
+    except:
+        pass
+    
     if save_data:
         fnout = (fn.split('/')[-1]).strip('.fil') + '.hdf5'
         fnout = '/home/ubuntu/connor/software/misc/data/MLtraining/' + fnout
@@ -617,7 +660,7 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
              nfreq_plot=nfreq_plot, 
              classify=classify, showplot=showplot, 
              multibeam=flist,
-             heim_raw_tres=1, save_data=save_data)
+                        heim_raw_tres=1, save_data=save_data, candname=trigname)
     print(not_real)
     #if slack and not_real==False:
     if toslack:
