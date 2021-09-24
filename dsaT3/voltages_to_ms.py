@@ -113,6 +113,7 @@ def corr_handler(
 def uvh5_handler(
         candname,
         declination,
+        declination_lock,
         tstart,
         ntint,
         nfint,
@@ -124,6 +125,12 @@ def uvh5_handler(
 ):
     proc = multiprocessing.current_process()
     uvh5_done = False
+    with declination_lock:
+        if declination.value is None:
+            declination.value = get_declination(
+                get_elevation(tstart)
+            ).to_value(u.deg)
+
     while not uvh5_done:
         try:
             corr_files = uvh5_queue.get()
@@ -136,7 +143,7 @@ def uvh5_handler(
                 continue
             uvh5name = generate_T3_uvh5(
                 '{0}/{1}'.format(T3PARAMS['corrdir'], candname),
-                declination,
+                declination.value*u.deg,
                 tstart,
                 ntint=ntint,
                 nfint=nfint,
@@ -217,18 +224,14 @@ def __main__(candname, datestring, ntint, nfint, start_offset, end_offset):
     with open(headername) as jsonf:
         metadata = json.load(jsonf)
     tstart = Time(metadata['mjds'], format='mjd')
-    try:
-        declination = get_declination(
-            get_elevation(tstart)
-        )
-    except ConnectionError:
-        declination = 54.58209895*u.deg
     deltat_ms = ntint*T3PARAMS['deltat_s']*1e3
     deltaf_MHz = T3PARAMS['deltaf_MHz']
 
     manager = Manager()
     ncorrfiles = manager.Value('i', 0)
     ncorrfiles_lock = manager.Lock()
+    declination = manager.Value(float, None)
+    declination_lock = manager.Lock()
     rsync_queue = manager.Queue()
     corr_queue = manager.Queue()
     uvh5_queue = manager.Queue()
@@ -265,6 +268,7 @@ def __main__(candname, datestring, ntint, nfint, start_offset, end_offset):
             args=(
                 candname,
                 declination,
+                declination_lock,
                 tstart,
                 ntint,
                 nfint,
