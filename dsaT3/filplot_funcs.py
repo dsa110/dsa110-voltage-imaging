@@ -25,8 +25,9 @@ from joblib import Parallel, delayed
 from sigpyproc.Readers import FilReader
 import slack
 
-from dsaT3 import utils
-from dsaT3.utils import get_pointing_mjd
+from astropy.time import Time
+
+from dsautils.coordinates import get_pointing, get_galcoord
 
 ncpu = multiprocessing.cpu_count() - 1 
 
@@ -594,8 +595,8 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
     else:
         showplot=True
 
-    ra_mjd, dec_mjd = get_pointing_mjd(timehr)
-    l, b = utils.get_galcoord(ra_mjd.value, dec_mjd.value)
+    ra_mjd, dec_mjd = get_pointing(Time(timehr, format='mjd'))
+    l, b = get_galcoord(ra_mjd.value, dec_mjd.value)
 #    ind_near = utils.match_pulsar(ra_mjd, dec_mjd, thresh_deg=3.5)
 
 #    psr_txt_str = ''
