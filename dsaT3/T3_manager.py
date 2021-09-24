@@ -265,9 +265,15 @@ def copy(a):
     output_dict['trigname'] = list(b.keys())[0]
     output_dict['datestring'] = datestring
     output_dict['corrname'] = corrname
-    cmd = "scp "+corrname+".sas.pvt:/home/ubuntu/data/"+output_dict['trigname']+"_header.json "+odir+corrname+"_"+output_dict['trigname']+"_header.json"
+
+    remote_loc = "/home/ubuntu/data/"+output_dict['trigname']+"_header.json"
+    local_loc = odir+corrname+"_"+output_dict['trigname']+"_header.json"
+    cmd = "ssh "+corrname+".sas.pvt 'sudo loginctl enable-linger ubuntu; source ~/.bashrc; screen -d -m scp "+remote_loc+" 10.41.0.182:"+local_loc+"'"    
     os.system(cmd)
-    cmd = "scp "+corrname+".sas.pvt:/home/ubuntu/data/"+output_dict['trigname']+"_data.out "+odir+corrname+"_"+output_dict['trigname']+"_data.out"
+    
+    remote_loc = "/home/ubuntu/data/"+output_dict['trigname']+"_data.out"
+    local_loc = odir+corrname+"_"+output_dict['trigname']+"_data.out"
+    cmd = "ssh "+corrname+".sas.pvt 'sudo loginctl enable-linger ubuntu; source ~/.bashrc; screen -d -m scp "+remote_loc+" 10.41.0.182:"+local_loc+"'"        
     os.system(cmd)
 
     return output_dict
