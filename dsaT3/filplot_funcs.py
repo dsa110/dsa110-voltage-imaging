@@ -111,6 +111,9 @@ def plotfour(dataft, datats, datadmt,
     datats /= np.std(datats[datats!=np.max(datats)])
     nfreq, ntime = dataft.shape
     xminplot,xmaxplot = 500.-300*ibox/16.,500.+300*ibox/16 # milliseconds
+    if xminplot<0:
+        xmaxplot=xminplot+300*ibox/16        
+        xminplot=0
     dm_min, dm_max = dms[0], dms[1]
     tmin, tmax = 0., 1e3*dataft.header['tsamp']*ntime
     freqmax = dataft.header['fch1']

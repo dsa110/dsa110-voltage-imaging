@@ -7,7 +7,7 @@ de = dsa_store.DsaStore()
 datestring = de.get_dict('/cnf/datestring')
 odir = "/media/ubuntu/ssd/T3/"+datestring
 MEMFL = "/home/ubuntu/data/T3/management.json"
-os.system("rm -rf "+MEMFL)
+#os.system("rm -rf "+MEMFL)
 TRIGGER_WAIT = 1800./86400.
 FSIZE = 5945425920
 MIN_CT = 8
@@ -84,7 +84,8 @@ while True:
             MEM[cname+'_mjd'] = dsa_functions36.current_mjd()
 
         # search for associated voltage files
-        update_mem(MEM,cname)
+        if MEM[cname+'_trigger'] is False:
+            update_mem(MEM,cname)
 
 
     # triggering!
@@ -95,6 +96,7 @@ while True:
             if MEM[cname+'_trigger'] is False:
                 de.put_dict('/mon/corr/1/voltagecopy',MEM[cname])
                 MEM[cname+'_trigger'] = True
+                MEM[cname+'_trigger_time'] = dsa_functions36.current_mjd()
                 
         # send trigger onwards if 30 min have passed since entry was created
         if dsa_functions36.current_mjd()-MEM[cname+'_mjd'] > TRIGGER_WAIT:
@@ -102,6 +104,7 @@ while True:
                 if MEM[cname+'_trigger'] is False:
                     de.put_dict('/mon/corr/1/voltagecopy',MEM[cname])
                     MEM[cname+'_trigger'] = True
+                    MEM[cname+'_trigger_time'] = dsa_functions36.current_mjd()
             
 
     # write MEM to disk and sleep

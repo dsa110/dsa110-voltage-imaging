@@ -251,7 +251,7 @@ def run_copied(a):
     return output_dict
 
 # to scp files
-def copy(a):
+def copy(a,nrep=5):
 
     # make dir
     datestring = ds.get_dict('/cnf/datestring')
@@ -268,12 +268,14 @@ def copy(a):
 
     remote_loc = "/home/ubuntu/data/"+output_dict['trigname']+"_header.json"
     local_loc = odir+corrname+"_"+output_dict['trigname']+"_header.json"
-    cmd = "ssh "+corrname+".sas.pvt 'sudo loginctl enable-linger ubuntu; source ~/.bashrc; screen -d -m scp "+remote_loc+" 10.41.0.182:"+local_loc+"'"    
+    #cmd = "ssh "+corrname+".sas.pvt 'sudo loginctl enable-linger ubuntu; source ~/.bashrc; screen -d -m scp "+remote_loc+" 10.41.0.182:"+local_loc+"'"
+    cmd = "ssh "+corrname+".sas.pvt 'sudo loginctl enable-linger ubuntu; source ~/.bashrc; screen -d -m rsync --partial --timeout=20 -avz "+remote_loc+" 10.41.0.182:"+local_loc+"'"    
     os.system(cmd)
     
     remote_loc = "/home/ubuntu/data/"+output_dict['trigname']+"_data.out"
     local_loc = odir+corrname+"_"+output_dict['trigname']+"_data.out"
-    cmd = "ssh "+corrname+".sas.pvt 'sudo loginctl enable-linger ubuntu; source ~/.bashrc; screen -d -m scp "+remote_loc+" 10.41.0.182:"+local_loc+"'"        
+    #cmd = "ssh "+corrname+".sas.pvt 'sudo loginctl enable-linger ubuntu; source ~/.bashrc; screen -d -m scp "+remote_loc+" 10.41.0.182:"+local_loc+"'"
+    cmd = "ssh "+corrname+".sas.pvt 'sudo loginctl enable-linger ubuntu; source ~/.bashrc; screen -L -d -m bash /home/ubuntu/proj/dsa110-shell/dsa110-xengine/scripts/run_rsync.bash "+remote_loc+" 10.41.0.182:"+local_loc+"'"
     os.system(cmd)
 
     return output_dict
