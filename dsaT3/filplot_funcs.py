@@ -25,7 +25,6 @@ from joblib import Parallel, delayed
 from sigpyproc.Readers import FilReader
 import slack
 
-
 from event import labels
 from astropy.time import Time
 from dsautils.coordinates import get_pointing, get_galcoord
@@ -112,7 +111,7 @@ def plotfour(dataft, datats, datadmt,
     nfreq, ntime = dataft.shape
     xminplot,xmaxplot = 500.-300*ibox/16.,500.+300*ibox/16 # milliseconds
     if xminplot<0:
-        xmaxplot=xminplot+300*ibox/16        
+        xmaxplot=xminplot+500+300*ibox/16        
         xminplot=0
     dm_min, dm_max = dms[0], dms[1]
     tmin, tmax = 0., 1e3*dataft.header['tsamp']*ntime
