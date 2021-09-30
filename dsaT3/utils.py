@@ -1,10 +1,8 @@
 """Simple utilities for T3 imaging.
 """
 import subprocess
-import json, os, glob, sys
-from dsautils import dsa_store
+import json, os, glob
 
-ds = dsa_store.DsaStore()
 
 def archive(datestring, T3root='/media/ubuntu/data/dsa110/T3/'):
     """ Archive data from corr nodes to local (h23).
