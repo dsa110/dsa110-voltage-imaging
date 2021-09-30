@@ -25,8 +25,10 @@ from joblib import Parallel, delayed
 from sigpyproc.Readers import FilReader
 import slack
 
-from dsaT3 import utils
-from dsaT3.utils import get_pointing_mjd
+
+from event import labels
+from astropy.time import Time
+from dsautils.coordinates import get_pointing, get_galcoord
 
 ncpu = multiprocessing.cpu_count() - 1 
 
@@ -108,22 +110,29 @@ def plotfour(dataft, datats, datadmt,
                            'snr_dm0_allbeam' : []}
     datats /= np.std(datats[datats!=np.max(datats)])
     nfreq, ntime = dataft.shape
-    xminplot,xmaxplot = 200,800 # milliseconds
+    xminplot,xmaxplot = 500.-300*ibox/16.,500.+300*ibox/16 # milliseconds
+    if xminplot<0:
+        xmaxplot=xminplot+300*ibox/16        
+        xminplot=0
     dm_min, dm_max = dms[0], dms[1]
     tmin, tmax = 0., 1e3*dataft.header['tsamp']*ntime
     freqmax = dataft.header['fch1']
     freqmin = freqmax + dataft.header['nchans']*dataft.header['foff']
+    freqs = np.linspace(freqmin, freqmax, nfreq)
     tarr = np.linspace(tmin, tmax, ntime)
     fig = plt.figure(figsize=(8,10))
 
     plt.subplot(321)
     extentft=[tmin,tmax,freqmin,freqmax]
     plt.imshow(dataft, aspect='auto',extent=extentft, interpolation='nearest')
+    DM0_delays = xminplot + dm * 4.15E6 * (freqmin**-2 - freqs**-2)
+    plt.plot(DM0_delays, freqs, c='r', lw='2', alpha=0.35)
     plt.xlim(xminplot,xmaxplot)
     plt.xlabel('Time (ms)')
     plt.ylabel('Freq (MHz)')
     if prob!=-1:
-        plt.text(xminplot+50,0.5*(freqmax+freqmin),"Prob=%0.2f" % prob, color='white', fontweight='bold')
+        plt.text(xminplot+50*ibox/16.,0.5*(freqmax+freqmin),
+                 "Prob=%0.2f" % prob, color='white', fontweight='bold')
         classification_dict['prob'] = prob
     plt.subplot(322)
     extentdm=[tmin, tmax, dm_min, dm_max]
@@ -138,7 +147,7 @@ def plotfour(dataft, datats, datadmt,
     plt.xlabel('Time (ms)')
     plt.ylabel(r'Power ($\sigma$)')
     plt.xlim(xminplot,xmaxplot)
-    plt.text(0.55*(tmin+1000.), 0.5*(max(datats)+np.median(datats)), 
+    plt.text(0.51*(xminplot+xmaxplot), 0.5*(max(datats)+np.median(datats)), 
             'Heimdall S/N : %0.1f\nHeimdall DM : %d\
             \nHeimdall ibox : %d\nibeam : %d' % (heimsnr,dm,ibox,ibeam), 
             fontsize=8, verticalalignment='center')
@@ -147,7 +156,7 @@ def plotfour(dataft, datats, datadmt,
     if beam_time_arr is None:
         plt.xticks([])
         plt.yticks([])
-        plt.text(0.20, 0.55, 'Multibeam info\nunder construction',
+        plt.text(0.20, 0.55, 'Multibeam info\n not available',
                 fontweight='bold')
     else:
         parent_axes.imshow(beam_time_arr[::-1], aspect='auto', extent=[tmin, tmax, 0, beam_time_arr.shape[0]], 
@@ -456,12 +465,41 @@ def generate_beam_time_arr(fl, ibeam=0, pre_rebin=1,
 
     return beam_time_arr, multibeam_dm0ts, beamno_arr
 
+def classify_freqtime(fnmodel, dataft):
+    """ Function to classify dynspec of candidate. 
+    fnmodel can either be a string with the path to
+    the keras model or the model itself. 
+    """
+    if type(fnmodel)==str:
+        from keras.models import load_model
+        fnmodel=MLMODELPATH
+        model = load_model(fnmodel)
+    else:
+        model = fnmodel
+        
+    mm = np.argmax(dataft.mean(0))
+    tlow, thigh = mm-32, mm+32
+    if mm<32:
+        tlow=0
+        thigh=64
+    if thigh>dataft.shape[1]:
+        thigh=dataft.shape[1]
+        tlow=thigh-64
+    dataml = dataft[:,tlow:thigh]
+    dataml -= np.median(dataml, axis=1, keepdims=True)
+    dataml /= np.std(dataml, axis=-1)[:, None]
+    dataml[dataml!=dataml] = 0.0
+    dataml = dataml[None,..., None]
+    prob = model.predict(dataml)[0,1]
+
+    return prob
+
 
 def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
              ndm=32, suptitle='', heimsnr=-1,
              ibeam=-1, rficlean=True, nfreq_plot=32, 
              classify=False, heim_raw_tres=1, 
-             showplot=True, save_data=False):
+             showplot=True, save_data=False, candname=None):
     """ Vizualize FRB candidates on DSA-110
     """
 #    if type(multibeam)==list:
@@ -504,8 +542,14 @@ def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
                                                pre_rebin=1, nfreq_plot=nfreq_plot,
                                                ndm=ndm, rficlean=rficlean,
                                                heim_raw_tres=heim_raw_tres)
+
+    if classify:
+        prob = classify_freqtime(MLMODELPATH, dataft)
+    else:
+        prob = -1
     
     if classify:
+        pass
         from keras.models import load_model
         fnmodel=MLMODELPATH
         model = load_model(fnmodel)
@@ -522,10 +566,17 @@ def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
         dataml /= np.std(dataml, axis=-1)[:, None]
         dataml[dataml!=dataml] = 0.0
         dataml = dataml[None,..., None]
+        print(dataml.shape)
         prob = model.predict(dataml)[0,1]
     else:
         prob = -1
-        
+
+    try:
+        if candname != None:
+            labels.set_probability(webPLOTDIR+candname, prob, filename=None)
+    except:
+        pass
+    
     if save_data:
         fnout = (fn.split('/')[-1]).strip('.fil') + '.hdf5'
         fnout = '/home/ubuntu/connor/software/misc/data/MLtraining/' + fnout
@@ -553,7 +604,7 @@ def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
     return not_real
     
 
-def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,ndm=32,ntime_plot=64,nfreq_plot=32,save_data=False):
+def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,ndm=32,ntime_plot=64,nfreq_plot=32,save_data=False,fllisting=None):
 
     trigname = list(trigger_dict.keys())[0]
     dm = trigger_dict[trigname]['dm']
@@ -561,30 +612,37 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
     ibeam = trigger_dict[trigname]['ibeam'] + 1
     timehr = trigger_dict[trigname]['mjds']
     snr = trigger_dict[trigname]['snr']    
-    flist = glob.glob(BASEDIR+'/T1/corr*/'+datestr+'/fil_%s/*.fil' % trigname)
-    flist.sort()
 
-    beamindlist = []
+    if fllisting is None:
 
-    for fnfil in flist:
-        beamno = int(fnfil.strip('.fil').split('_')[-1])
-        beamindlist.append(beamno)
-        if beamno==ibeam:
-            fname = fnfil
-    flist_=[]
+        flist = glob.glob(BASEDIR+'/T1/corr*/'+datestr+'/fil_%s/*.fil' % trigname)
+        flist.sort()
 
-    # reorder the filename list in beam number
-    for ii in range(len(flist)):
-        flist_.append(flist[np.where(np.array(beamindlist)==ii)[0][0]])
-    flist = flist_
+        beamindlist = []
+
+        for fnfil in flist:
+            beamno = int(fnfil.strip('.fil').split('_')[-1])
+            beamindlist.append(beamno)
+            if beamno==ibeam:
+                fname = fnfil
+        flist_=[]
+
+        # reorder the filename list in beam number
+        for ii in range(len(flist)):
+            flist_.append(flist[np.where(np.array(beamindlist)==ii)[0][0]])
+        flist = flist_
+
+    else:
+         flist = fllisting
+         fname = fllisting[ibeam]
 
     if toslack:
         showplot=False
     else:
         showplot=True
 
-    ra_mjd, dec_mjd = get_pointing_mjd(timehr)
-    l, b = utils.get_galcoord(ra_mjd.value, dec_mjd.value)
+    ra_mjd, dec_mjd = get_pointing(Time(timehr, format='mjd'))
+    l, b = get_galcoord(ra_mjd.value, dec_mjd.value)
 #    ind_near = utils.match_pulsar(ra_mjd, dec_mjd, thresh_deg=3.5)
 
 #    psr_txt_str = ''
@@ -606,7 +664,7 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
              nfreq_plot=nfreq_plot, 
              classify=classify, showplot=showplot, 
              multibeam=flist,
-             heim_raw_tres=1, save_data=save_data)
+                        heim_raw_tres=1, save_data=save_data, candname=trigname)
     print(not_real)
     #if slack and not_real==False:
     if toslack:
@@ -625,4 +683,4 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
         client = slack.WebClient(token=slack_token);
         client.files_upload(channels='candidates',file=fnameout,initial_comment=fnameout);
 
-    return fnameout
+    return fnameout,not_real
