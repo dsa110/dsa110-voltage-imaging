@@ -6,10 +6,11 @@ from dsautils import dsa_functions36
 de = dsa_store.DsaStore()
 datestring = de.get_dict('/cnf/datestring')
 odir = "/media/ubuntu/ssd/T3/"+datestring
+#odir = "/media/ubuntu/ssd/T3"
 MEMFL = "/home/ubuntu/data/T3/management.json"
-#os.system("rm -rf "+MEMFL)
-TRIGGER_WAIT = 1800./86400.
-FSIZE = 5945425920
+os.system("rm -rf "+MEMFL)
+TRIGGER_WAIT = 7200./86400.
+FSIZE = 2972712960
 MIN_CT = 8
 
 # a is file name
@@ -23,7 +24,7 @@ def extract_cand_from_json(a):
 def add_empty_dict(MEM,cname):
 
     # find dict
-    hfls = glob.glob(odir+"/*_"+cname+"_header.json")
+    hfls = glob.glob(odir+"/corr*/"+cname+"_header.json")
     hfls.sort(key=os.path.getmtime, reverse=True)
     hfl = open(hfls[0])
     di = json.load(hfl)
@@ -40,12 +41,12 @@ def update_mem(MEM,cname):
     ct = 0
     for corr in ['corr03','corr04','corr05','corr06','corr07','corr08','corr10','corr11','corr12','corr14','corr15','corr16','corr18','corr19','corr21','corr22']:
 
-        fl = odir+"/"+corr+"_"+cname+"_data.out"
+        fl = odir+"/"+corr+"/"+cname+"_data.out"
         if os.path.exists(fl):
             if os.path.getsize(fl)==FSIZE:
                 MEM[cname][cname][corr+'_data'] = fl
                 ct += 1
-        fl = odir+"/"+corr+"_"+cname+"_header.json"
+        fl = odir+"/"+corr+"/"+cname+"_header.json"
         if os.path.exists(fl):
             MEM[cname][cname][corr+'_header'] = fl
 
@@ -62,7 +63,7 @@ while True:
         MEM = {}
     
     # get list of files sorted by write time
-    hdrs = glob.glob(odir+"/*_header.json")
+    hdrs = glob.glob(odir+"/corr*/*_header.json")
     hdrs.sort(key=os.path.getmtime, reverse=True)
     #volts = glob.glob(odir+"/*_data.out")
     #volts.sort(key=os.path.getmtime, reverse=True)

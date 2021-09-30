@@ -25,22 +25,26 @@ def cb_func(dd):
     res = client.submit(task, dd)
     tasks.append(res)
 
-# set watch
-wid = de.add_watch('/mon/corr/1/voltage', cb_func)
 
-# clean up existing triggers
 datestring = de.get_dict('/cnf/datestring')
-trig_jsons = sorted(glob.glob('/data/dsa110/T2/'+datestring+'/cluster_output*.json'))
-for fl in trig_jsons:
-    f = open(fl)
-    d = json.load(f)
-    trigname = list(d.keys())[0]
-    if not os.path.exists('/home/ubuntu/data/T3/'+trigname+'.png'):
-        res = client.submit(task_nowait, d)
-        tasks.append(res)
-    
+
+# work through candidates as they are written to disk
+candnames = []
 
 while True:
+
+    trig_jsons = sorted(glob.glob('/data/dsa110/T2/'+datestring+'/cluster_output*.json'))
+    for fl in trig_jsons:
+        f = open(fl)
+        d = json.load(f)
+        trigname = list(d.keys())[0]
+
+        if trigname not in candnames:
+            candnames.append(trigname)        
+            if not os.path.exists('/home/ubuntu/data/T3/'+trigname+'.png'):
+                res = client.submit(task_nowait, d)
+                tasks.append(res)
+    
     try:
         print(f'{len(tasks)} tasks in queue')
         for future in tasks:
