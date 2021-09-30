@@ -11,7 +11,7 @@ def archive(datestring, T3root='/media/ubuntu/data/dsa110/T3/'):
 
     # copy from T3 directory 
     os.system('mkdir -p '+T3root+datestring)
-    os.system('cp /home/ubuntu/data/T3/* '+T3root+datestring)
+    os.system('rsync -av /home/ubuntu/data/T3/ '+T3root+datestring)
 
     fls = glob.glob(T3root+datestring+'/*.json')
     saved_trigname = []
