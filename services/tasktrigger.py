@@ -47,6 +47,8 @@ while True:
     
     try:
         print(f'{len(tasks)} tasks in queue')
+        if len(tasks)==0:
+            candnames = []
         for future in tasks:
             print(future)
             if future.done():
