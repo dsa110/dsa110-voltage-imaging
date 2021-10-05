@@ -21,9 +21,12 @@ def task_nowait(a):
 
 tasks = []
 def cb_func(dd):
-    global tasks    
-    res = client.submit(task, dd)
-    tasks.append(res)
+    global tasks
+    corrname = dd['corrname']
+    trigger = dd['trigger']
+    if corrname == 'corr03':
+        res = client.submit(task, trigger)
+        tasks.append(res)
 
 
 datestring = de.get_dict('/cnf/datestring')
