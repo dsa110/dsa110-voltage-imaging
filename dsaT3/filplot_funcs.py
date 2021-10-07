@@ -573,9 +573,9 @@ def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
     try:
         if candname != None:
             labels.set_probability(prob, filename=webPLOTDIR+candname+'.json')
-    except:
-        pass
-    
+    except Exception as exc:
+        print(exc.args[0])
+
     if save_data:
         fnout = (fn.split('/')[-1]).strip('.fil') + '.hdf5'
         fnout = '/home/ubuntu/connor/software/misc/data/MLtraining/' + fnout
