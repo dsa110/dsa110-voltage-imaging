@@ -572,7 +572,7 @@ def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
 
     try:
         if candname != None:
-            labels.set_probability(webPLOTDIR+candname, prob, filename=None)
+            labels.set_probability(prob, filename=webPLOTDIR+candname)
     except:
         pass
     

@@ -22,7 +22,7 @@ if __name__=='__main__':
     dataft, datadm, tsdm0, dms, datadm0 = filplot_funcs.proc_cand_fil(fn, dm, 1, snrheim=-1,
                                                pre_rebin=1, nfreq_plot=64,
                                                ndm=64, rficlean=True, norm=True)
-    fnout = '/home/ubuntu/connor/data/%s.npy' + fn.split('/')[-1]
+    fnout = '/home/ubuntu/connor/data/%s_rficlean.npy' %  fn.split('/')[-1]
     print('Saving high res data to:\n%s' % fnout)
     np.save(fnout, dataft)
     dataft = dataft.downsample(ibox)
