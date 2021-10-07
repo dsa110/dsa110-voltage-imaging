@@ -50,12 +50,12 @@ while True:
     
     try:
         print(f'{len(tasks)} tasks in queue')
-        if len(tasks)==0:
-            candnames = []
+        #if len(tasks)==0:
+        #    candnames = []
         for future in tasks:
-            print(future)
             if future.done():
-                print(future.result())
+                dd = future.result()
+                print(f'\tTask complete for {dd["trigname"]}')
                 tasks.remove(future)
 
         de.put_dict('/mon/service/T3manager',{'cadence': 5, 'time': dsa_functions36.current_mjd()})
