@@ -43,15 +43,16 @@ while True:
         trigname = list(d.keys())[0]
 
         if trigname not in candnames:
-            candnames.append(trigname)        
-            if not os.path.exists('/home/ubuntu/data/T3/'+trigname+'.png'):
-                res = client.submit(task_nowait, d)
-                tasks.append(res)
+            if len(tasks)<8:
+                candnames.append(trigname)        
+                if not os.path.exists('/home/ubuntu/data/T3/'+trigname+'.png'):
+                    res = client.submit(task_nowait, d)
+                    tasks.append(res)
     
     try:
         print(f'{len(tasks)} tasks in queue')
-        #if len(tasks)==0:
-        #    candnames = []
+        if len(tasks)==0:
+            candnames = []
         for future in tasks:
             if future.done():
                 dd = future.result()
