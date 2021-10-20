@@ -146,7 +146,7 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
         if refant in bn.split('-'):
             refidxs += [i]
     itemspframe = nbls*params['nchan_corr']*params['npol']*2
-    framespblock = 16
+    framespblock = 2
     itemspblock = itemspframe*framespblock
     assert (end_offset - start_offset)%framespblock == 0
     nblocks = (end_offset-start_offset)//framespblock
@@ -188,7 +188,7 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                     )
                     buvw = np.array([bu, bv, bw]).T
                     print(bw.shape)
-                    ant_bw = bw[refidxs]
+                    ant_bw = bw[refidxs].T
                     print(ant_bw.shape)
                     # TODO: This needs to be per antenna
                     data = np.fromfile(
@@ -199,14 +199,18 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                     data = data.reshape(-1, 2)
                     data = data[..., 0] + 1.j*data[..., 1]
                     data = data.reshape(framespblock, nbls, len(fobs_corr_full), params['npol'])[..., [0, -1]]
-                    total_delay = delays.copy()
-                    total_delay = total_delay[np.newaxis, :]
-                    for i, bn in enumerate(bname):
+                    total_delay = np.zeros((framespblock, nbls))
+                    print('total_delay: ', total_delay.shape)
+                    print('ant_bw: ', ant_bw.shape)
+                    for bni, bn in enumerate(bname):
                         ant1, ant2 = bn.split('-')
-                        total_delay += ((ant_bw[antenna_order.index(int(ant1))]
-                                         -ant_bw[antenna_order.index(int(ant2))])*u.m/c.c).to_value(u.nanosecond)
+                        total_delay[:, bni] = delays[bni] + ((ant_bw[:, antenna_order.index(int(ant1))]
+                            -ant_bw[:, antenna_order.index(int(ant2))])*u.m/c.c).to_value(u.nanosecond)
                     total_delay = total_delay[:, :, np.newaxis, np.newaxis]
+                    print('total_delay: ', total_delay.shape)
                     vis_model = np.exp(2j*np.pi*fobs_corr_full[:, np.newaxis]*total_delay)
+                    print('vis_model: ', vis_model.shape)
+                    print('data: ', data.shape)
                     vis_model = vis_model.astype(np.complex64)
                     data /= vis_model
                     if nfint > 1:
