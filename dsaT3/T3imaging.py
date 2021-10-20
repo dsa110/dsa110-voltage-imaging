@@ -30,72 +30,7 @@ MYCONF = cnf.Conf()
 CORRPARAMS = MYCONF.get('corr')
 MFSPARAMS = MYCONF.get('fringe')
 CORR_ORDER = np.arange(1, 17)
-ANTENNA_ORDER = [
-    24,
-    25,
-    26,
-    27,
-    28,
-    29,
-    30,
-    31,
-    32,
-    33,
-    34,
-    35,
-    20,
-    19,
-    18,
-    17,
-    16,
-    15,
-    14,
-    13,
-    100,
-    101,
-    102,
-    116,
-    103,
-    12,
-    11,
-    10,
-    9,
-    8,
-    7,
-    6,
-    5,
-    4,
-    3,
-    2,
-    1,
-    104,
-    105,
-    106,
-    107,
-    108,
-    109,
-    110,
-    111,
-    112,
-    113,
-    114,
-    115,
-    36,
-    37,
-    38,
-    39,
-    40,
-    41,
-    42,
-    43,
-    117,
-    44,
-    45,
-    46,
-    47,
-    48,
-    49,
-]
+ANTENNA_ORDER = list(CORRPARAMS['antenna_order'].values())
 
 def get_mjd(armed_mjd, utc_start, specnum):
     """Get the start mjd of a voltage dump.
@@ -204,7 +139,12 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
     if end_offset is None:
         end_offset = len(tobs)
     tobs = tobs[start_offset:end_offset]
-    blen, bname = get_blen(params['antennas'])
+    blen, bname = get_blen(antenna_order)
+    refidxs = []
+    refant = str(antenna_order[0])
+    for i, bn in enumerate(bname):
+        if refant in bn.split('-'):
+            refidxs += [i]
     itemspframe = nbls*params['nchan_corr']*params['npol']*2
     framespblock = 16
     itemspblock = itemspframe*framespblock
@@ -247,6 +187,10 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                         np.ones(framespblock)*pt_dec
                     )
                     buvw = np.array([bu, bv, bw]).T
+                    print(bw.shape)
+                    ant_bw = bw[refidxs]
+                    print(ant_bw.shape)
+                    # TODO: This needs to be per antenna
                     data = np.fromfile(
                         cfhandler,
                         dtype=np.float32,
@@ -255,7 +199,13 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                     data = data.reshape(-1, 2)
                     data = data[..., 0] + 1.j*data[..., 1]
                     data = data.reshape(framespblock, nbls, len(fobs_corr_full), params['npol'])[..., [0, -1]]
-                    total_delay = (delays[np.newaxis, :]+(buvw[..., 2]*u.m/c.c).to_value(u.nanosecond))[:, :, np.newaxis, np.newaxis]
+                    total_delay = delays.copy()
+                    total_delay = total_delay[np.newaxis, :]
+                    for i, bn in enumerate(bname):
+                        ant1, ant2 = bn.split('-')
+                        total_delay += ((ant_bw[antenna_order.index(int(ant1))]
+                                         -ant_bw[antenna_order.index(int(ant2))])*u.m/c.c).to_value(u.nanosecond)
+                    total_delay = total_delay[:, :, np.newaxis, np.newaxis]
                     vis_model = np.exp(2j*np.pi*fobs_corr_full[:, np.newaxis]*total_delay)
                     vis_model = vis_model.astype(np.complex64)
                     data /= vis_model
