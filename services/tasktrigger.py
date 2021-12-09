@@ -31,7 +31,7 @@ def cb_func(dd):
 def datestring_func():
     def a(event):
         global datestring
-	datestring=event
+        datestring = event
     return a
 
 def docopy_func():
