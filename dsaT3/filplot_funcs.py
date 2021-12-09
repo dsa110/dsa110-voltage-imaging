@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import json
 import glob
 import optparse
+import pandas
 from mpl_toolkits.axes_grid.inset_locator import inset_axes
 
 import multiprocessing
@@ -25,9 +26,9 @@ from joblib import Parallel, delayed
 from sigpyproc.Readers import FilReader
 import slack
 
-from event import labels
 from astropy.time import Time
-from dsautils.coordinates import get_pointing, get_galcoord
+#from dsautils.coordinates import get_pointing, get_galcoord
+import dsautils.coordinates
 
 ncpu = multiprocessing.cpu_count() - 1 
 
@@ -79,7 +80,9 @@ def plotfour(dataft, datats, datadmt,
              beam_time_arr=None, figname_out=None, dm=0,
              dms=[0,1], 
              datadm0=None, suptitle='', heimsnr=-1,
-             ibox=1, ibeam=-1, prob=-1, showplot=True,multibeam_dm0ts=None):
+             ibox=1, ibeam=-1, prob=-1,
+             showplot=True,multibeam_dm0ts=None,
+             fnT2clust=None,imjd=0.0):
     """ Plot a trigger's dynamics spectrum, 
         dm/time array, pulse profile, 
         multibeam info (optional), and zerodm (optional)
@@ -113,6 +116,7 @@ def plotfour(dataft, datats, datadmt,
     if xminplot<0:
         xmaxplot=xminplot+500+300*ibox/16        
         xminplot=0
+    xminplot,xmaxplot = 0, 1000.
     dm_min, dm_max = dms[0], dms[1]
     tmin, tmax = 0., 1e3*dataft.header['tsamp']*ntime
     freqmax = dataft.header['fch1']
@@ -195,11 +199,32 @@ def plotfour(dataft, datats, datadmt,
             plt.legend(['DM=0 Timestream'], loc=2, fontsize=10)
         plt.xlabel('Time (ms)')
         
+#        plt.subplot(326)
+#        plt.plot(np.linspace(freqmax,freqmin,datadm0.shape[0]), np.mean(datadm0,axis=-1), color='k')
+
+#        plt.semilogy()
+#        plt.legend(['spectrum'], loc=2)
+#        plt.xlabel('freq [MHz]')
+
         plt.subplot(326)
-        plt.plot(np.linspace(freqmax,freqmin,datadm0.shape[0]), np.mean(datadm0,axis=-1), color='k')
-        plt.semilogy()
-        plt.legend(['spectrum'], loc=2)
-        plt.xlabel('freq [MHz]')
+        
+        if fnT2clust is not None:
+            T2object = pandas.read_csv(fnT2clust)
+            ind = np.where(np.abs(86400*(imjd-T2object.mjds[:]))<30.0)[0]
+            ttsec = (T2object.mjds.values-imjd)*86400
+            plt.scatter(ttsec[ind],
+                        T2object.ibeam[ind],
+                        c=T2object.dm[ind],
+                        s=2*T2object.snr[ind],
+                        cmap='RdBu_r',
+                        vmin=0,vmax=1200)
+            plt.colorbar(label=r'DM (pc cm$^{-3}$)')
+            plt.scatter(0, ibeam, s=100, marker='s',
+                        facecolor='none', edgecolor='black')
+            plt.xlim(-10,10.)
+            plt.ylim(0,256)
+            plt.xlabel('Time (s)')
+            plt.ylabel('ibeam')
 
     print(classification_dict)
     not_real = False
@@ -214,7 +239,7 @@ def plotfour(dataft, datats, datadmt,
 
     if not_real==True:
         suptitle += ' (Probably not real)'
-        
+
     plt.suptitle(suptitle, color='C1')
     plt.tight_layout()
     if figname_out is not None:
@@ -249,7 +274,8 @@ def dm_transform(data, dm_max=20,
 def proc_cand_fil(fnfil, dm, ibox, snrheim=-1, 
                   pre_rebin=1, nfreq_plot=64,
                   heim_raw_tres=1, 
-                  rficlean=False, ndm=64, norm=True):
+                  rficlean=False, ndm=64,
+                  norm=True, freq_ref=None):
     """ Take filterbank file path, preprocess, and 
     plot trigger
 
@@ -295,7 +321,7 @@ def proc_cand_fil(fnfil, dm, ibox, snrheim=-1,
     dm_err = 250.0
     datadm, dms = dm_transform(data, dm_max=dm+dm_err,
                                dm_min=dm-dm_err, dm0=dm, ndm=ndm, 
-                               freq_ref=None, 
+                               freq_ref=freq_ref, 
                                downsample=heim_raw_tres*ibox//pre_rebin)
     data = data.dedisperse(dm)
     data = data.downsample(heim_raw_tres*ibox//pre_rebin)
@@ -484,12 +510,14 @@ def classify_freqtime(fnmodel, dataft):
     if thigh>dataft.shape[1]:
         thigh=dataft.shape[1]
         tlow=thigh-64
-    dataml = dataft[:,tlow:thigh]
+#    dataml = dataft[:,tlow:thigh].copy()
+    dataml = dataft
     dataml -= np.median(dataml, axis=1, keepdims=True)
-    dataml /= np.std(dataml, axis=-1)[:, None]
+#    dataml /= np.std(dataml, axis=-1)[:, None]
+    dataml = dataml/np.std(dataml)
     dataml[dataml!=dataml] = 0.0
-    dataml = dataml[None,..., None]
-    prob = model.predict(dataml)[0,1]
+    dataml = dataml[None,:,tlow:thigh, None]
+    prob = float(model.predict(dataml)[0,1])
 
     return prob
 
@@ -498,7 +526,7 @@ def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
              ndm=32, suptitle='', heimsnr=-1,
              ibeam=-1, rficlean=True, nfreq_plot=32, 
              classify=False, heim_raw_tres=1, 
-             showplot=True, save_data=False, candname=None):
+             showplot=True, save_data=False, candname=None, fnT2clust=None, imjd=0):
     """ Vizualize FRB candidates on DSA-110
     """
 #    if type(multibeam)==list:
@@ -529,7 +557,6 @@ def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
             beamno_arr.append(beam_time_arr_results[ii][2])
             data_beam_freq_time.append(beam_time_arr_results[ii][0])
         data_beam_freq_time = np.concatenate(data_beam_freq_time, axis=0)
-        print(data_beam_freq_time.shape)
         beam_time_arr = data_beam_freq_time.mean(1)
         multibeam_dm0ts = beam_time_arr.mean(0)
     else:
@@ -547,38 +574,6 @@ def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
     else:
         prob = -1
     
-    if classify:
-        pass
-        from keras.models import load_model
-        fnmodel=MLMODELPATH
-        model = load_model(fnmodel)
-        mm = np.argmax(dataft.mean(0))
-        tlow, thigh = mm-32, mm+32
-        if mm<32:
-            tlow=0
-            thigh=64
-        if thigh>dataft.shape[1]:
-            thigh=dataft.shape[1]
-            tlow=thigh-64
-        dataml = dataft[:,tlow:thigh]
-        dataml -= np.median(dataml, axis=1, keepdims=True)
-        dataml /= np.std(dataml, axis=-1)[:, None]
-        dataml[dataml!=dataml] = 0.0
-        dataml = dataml[None,..., None]
-        print(dataml.shape)
-        prob = model.predict(dataml)[0,1]
-    else:
-        prob = -1
-
-    try:
-        if candname != None:
-            print(f'setting prob for {candname}')
-            labels.set_probability(prob, candname=candname)  # filename=webPLOTDIR+candname+'.json'
-        else:
-            print(f'not setting prob')
-    except Exception as exc:
-        print(exc.args[0])
-
     if save_data:
         fnout = (fn.split('/')[-1]).strip('.fil') + '.hdf5'
         fnout = '/home/ubuntu/connor/software/misc/data/MLtraining/' + fnout
@@ -598,15 +593,22 @@ def plot_fil(fn, dm, ibox, multibeam=None, figname_out=None,
     
         
     not_real = plotfour(dataft, dataft.mean(0), datadm, datadm0=datadm0, 
-             beam_time_arr=beam_time_arr, figname_out=figname_out, dm=dm,
-             dms=[dms[0],dms[-1]], 
-             suptitle=suptitle, heimsnr=heimsnr,
-             ibox=ibox, ibeam=ibeam, prob=prob, showplot=showplot, multibeam_dm0ts=multibeam_dm0ts)
+                        beam_time_arr=beam_time_arr, figname_out=figname_out, dm=dm,
+                        dms=[dms[0],dms[-1]], 
+                        suptitle=suptitle, heimsnr=heimsnr,
+                        ibox=ibox, ibeam=ibeam, prob=prob,
+                        showplot=showplot,
+                        multibeam_dm0ts=multibeam_dm0ts,fnT2clust=fnT2clust,imjd=imjd)
 
-    return not_real
+    return not_real,prob
     
 
-def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,ndm=32,ntime_plot=64,nfreq_plot=32,save_data=False,fllisting=None):
+def filplot_entry(datestr,trigger_dict,
+                  toslack=True,classify=True,
+                  rficlean=True,
+                  ndm=32,ntime_plot=64,
+                  nfreq_plot=32,save_data=False,
+                  fllisting=None):
 
     trigname = list(trigger_dict.keys())[0]
     dm = trigger_dict[trigname]['dm']
@@ -615,6 +617,8 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
     timehr = trigger_dict[trigname]['mjds']
     snr = trigger_dict[trigname]['snr']    
 
+    fnT2clust = '/data/dsa110/T2/%s/cluster_output.csv'%datestr
+    
     if fllisting is None:
 
         flist = glob.glob(BASEDIR+'/T1/corr*/'+datestr+'/fil_%s/*.fil' % trigname)
@@ -643,8 +647,8 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
     else:
         showplot=True
 
-    ra_mjd, dec_mjd = get_pointing(Time(timehr, format='mjd'))
-    l, b = get_galcoord(ra_mjd.value, dec_mjd.value)
+    ra_mjd, dec_mjd = dsautils.coordinates.get_pointing(obstime=Time(timehr, format='mjd'))
+    l, b = dsautils.coordinates.get_galcoord(ra_mjd.value, dec_mjd.value)
 #    ind_near = utils.match_pulsar(ra_mjd, dec_mjd, thresh_deg=3.5)
 
 #    psr_txt_str = ''
@@ -660,13 +664,14 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
     figdirout = webPLOTDIR
     fnameout = figdirout+trigname+'.png'
     
-    not_real = plot_fil(fname, dm, ibox, figname_out=fnameout,
-             ndm=ndm, suptitle=suptitle, heimsnr=snr,
-             ibeam=ibeam, rficlean=rficlean, 
-             nfreq_plot=nfreq_plot, 
-             classify=classify, showplot=showplot, 
-             multibeam=flist,
-                        heim_raw_tres=1, save_data=save_data, candname=trigname)
+    not_real,prob = plot_fil(fname, dm, ibox, figname_out=fnameout,
+                             ndm=ndm, suptitle=suptitle, heimsnr=snr,
+                             ibeam=ibeam, rficlean=rficlean, 
+                             nfreq_plot=nfreq_plot, 
+                             classify=classify, showplot=showplot, 
+                             multibeam=flist,
+                             heim_raw_tres=1, save_data=save_data,
+                             candname=trigname, fnT2clust=fnT2clust, imjd=timehr)
     print(not_real)
     #if slack and not_real==False:
     if toslack:
@@ -685,4 +690,4 @@ def filplot_entry(datestr,trigger_dict,toslack=True,classify=True,rficlean=True,
         client = slack.WebClient(token=slack_token);
         client.files_upload(channels='candidates',file=fnameout,initial_comment=fnameout);
 
-    return fnameout,not_real
+    return fnameout, prob

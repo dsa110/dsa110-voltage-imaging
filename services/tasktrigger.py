@@ -28,8 +28,29 @@ def cb_func(dd):
         res = client.submit(task, trigger)
         tasks.append(res)
 
+def datestring_func():
+    def a(event):
+        global datestring
+	datestring=event
+    return a
 
+def docopy_func():
+    def a(event):
+        global docopy
+        global candnames
+        if event=='True':
+            docopy=True
+        if event=='False':
+            docopy=False
+            candnames = []
+    return a
+
+
+# add callbacks from etcd                                                                                
+docopy = de.get_dict('/cmd/corr/docopy') == 'True'
 datestring = de.get_dict('/cnf/datestring')
+my_ds.add_watch('/cnf/datestring', datestring_func())
+my_ds.add_watch('/cmd/corr/docopy', docopy_func())
 
 # work through candidates as they are written to disk
 candnames = []
@@ -42,12 +63,13 @@ while True:
         d = json.load(f)
         trigname = list(d.keys())[0]
 
-        if trigname not in candnames:
-            if len(tasks)<8:
-                candnames.append(trigname)        
-                if not os.path.exists('/home/ubuntu/data/T3/'+trigname+'.png'):
-                    res = client.submit(task_nowait, d)
-                    tasks.append(res)
+        if docopy is True:
+            if trigname not in candnames:
+                if len(tasks)<8:
+                    candnames.append(trigname)        
+                    if not os.path.exists('/home/ubuntu/data/T3/'+trigname+'.png'):
+                        res = client.submit(task_nowait, d)
+                        tasks.append(res)
     
     try:
         print(f'{len(tasks)} tasks in queue')
