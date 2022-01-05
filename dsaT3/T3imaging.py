@@ -23,69 +23,6 @@ PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 T3PARAMS = load_params(PARAMFILE)
 CORR_ORDER = [int(k[4:]) for k in list(T3PARAMS['ch0'].keys())]
 
-def get_mjd(armed_mjd, utc_start, specnum):
-    """Get the start mjd of a voltage dump.
-
-    Parameters
-    ----------
-    armed_mjd : float
-        The time at which the snaps were armed, in mjd.
-    utc_start : int
-        The spectrum number at which the correlator was started.
-    specnum : int
-        The spectrum number of the first spectrum in the voltage dump,
-        referenced to when the correlator was started.
-
-    Returns
-    -------
-    tstart : float
-        The start time of the voltage dump in mjd.
-    """
-    tstart = (armed_mjd+utc_start*4*8.192e-6/86400+
-              (1/(250e6/8192/2)*specnum/ct.SECONDS_PER_DAY))
-    return tstart
-
-def get_blen(antennas):
-    """Gets the baseline lengths for a subset of antennas.
-
-    Parameters
-    ----------
-    antennas : list
-        The antennas used in the array.
-
-    Returns
-    -------
-    blen : array
-        The ITRF coordinates of all of the baselines.
-    bname : list
-        The names of all of the baselines.
-    """
-    ant_itrf = get_itrf(
-        latlon_center=(ct.OVRO_LAT*u.rad, ct.OVRO_LON*u.rad, ct.OVRO_ALT*u.m)
-    ).loc[antennas]
-    xx = np.array(ant_itrf['dx_m'])
-    yy = np.array(ant_itrf['dy_m'])
-    zz = np.array(ant_itrf['dz_m'])
-    # Get uvw coordinates
-    nants = len(antennas)
-    nbls = (nants*(nants+1))//2
-    blen = np.zeros((nbls, 3))
-    bname = []
-    k = 0
-    for i in range(nants):
-        for j in range(i, nants):
-            blen[k, :] = np.array([
-                xx[i]-xx[j],
-                yy[i]-yy[j],
-                zz[i]-zz[j]
-            ])
-            bname += ['{0}-{1}'.format(
-                antennas[i],
-                antennas[j]
-            )]
-            k += 1
-    return blen, bname
-
 def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS, start_offset=None, end_offset=None):
     """Generates a measurement set from the T3 correlations.
 
@@ -206,6 +143,69 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                         np.ones(data.shape, np.float32)
                     )
     return outname
+
+def get_mjd(armed_mjd, utc_start, specnum):
+    """Get the start mjd of a voltage dump.
+
+    Parameters
+    ----------
+    armed_mjd : float
+        The time at which the snaps were armed, in mjd.
+    utc_start : int
+        The spectrum number at which the correlator was started.
+    specnum : int
+        The spectrum number of the first spectrum in the voltage dump,
+        referenced to when the correlator was started.
+
+    Returns
+    -------
+    tstart : float
+        The start time of the voltage dump in mjd.
+    """
+    tstart = (armed_mjd+utc_start*4*8.192e-6/86400+
+              (1/(250e6/8192/2)*specnum/ct.SECONDS_PER_DAY))
+    return tstart
+
+def get_blen(antennas):
+    """Gets the baseline lengths for a subset of antennas.
+
+    Parameters
+    ----------
+    antennas : list
+        The antennas used in the array.
+
+    Returns
+    -------
+    blen : array
+        The ITRF coordinates of all of the baselines.
+    bname : list
+        The names of all of the baselines.
+    """
+    ant_itrf = get_itrf(
+        latlon_center=(ct.OVRO_LAT*u.rad, ct.OVRO_LON*u.rad, ct.OVRO_ALT*u.m)
+    ).loc[antennas]
+    xx = np.array(ant_itrf['dx_m'])
+    yy = np.array(ant_itrf['dy_m'])
+    zz = np.array(ant_itrf['dz_m'])
+    # Get uvw coordinates
+    nants = len(antennas)
+    nbls = (nants*(nants+1))//2
+    blen = np.zeros((nbls, 3))
+    bname = []
+    k = 0
+    for i in range(nants):
+        for j in range(i, nants):
+            blen[k, :] = np.array([
+                xx[i]-xx[j],
+                yy[i]-yy[j],
+                zz[i]-zz[j]
+            ])
+            bname += ['{0}-{1}'.format(
+                antennas[i],
+                antennas[j]
+            )]
+            k += 1
+    return blen, bname
 
 def plot_image(imname, verbose=False, outname=None, show=True, expected_point=None):
     """Plots an image from the casa-generated image file.
