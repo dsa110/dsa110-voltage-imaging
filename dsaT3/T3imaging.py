@@ -11,26 +11,17 @@ import astropy.units as u
 import astropy.constants as c
 from astropy.coordinates import Angle
 from antpos.utils import get_itrf
-from pyuvdata import UVData
 import casatools as cc
 from casacore.tables import table
-from dsautils import cnf
 from dsamfs.io import initialize_uvh5_file, update_uvh5_file
 from dsacalib.ms_io import extract_vis_from_ms
 from dsacalib.fringestopping import calc_uvw
 import dsacalib.constants as ct
-from dsacalib.preprocess import remove_outrigger_delays
+from dsaT3.utils import load_params
 
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
-with open(PARAMFILE) as YAMLF:
-    T3PARAMS = yaml.load(YAMLF, Loader=yaml.FullLoader)['T3corr']
-
-# TODO: use antenna_order from cnf
-MYCONF = cnf.Conf()
-CORRPARAMS = MYCONF.get('corr')
-MFSPARAMS = MYCONF.get('fringe')
-CORR_ORDER = np.arange(1, 17)
-ANTENNA_ORDER = list(CORRPARAMS['antenna_order'].values())
+T3PARAMS = load_params(PARAMFILE)
+CORR_ORDER = [int(k[4:]) for k in list(T3PARAMS['ch0'].keys())]
 
 def get_mjd(armed_mjd, utc_start, specnum):
     """Get the start mjd of a voltage dump.
@@ -128,8 +119,7 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
         The name of the measurement set created.
     """
     antenna_order = params['antennas']
-    fobs = params['f0_GHz']+params['deltaf_MHz']*1e-3*(
-        np.arange(params['nchan'])+0.5)
+    fobs = params['f0_GHz']+params['deltaf_MHz']*1e-3*np.arange(params['nchan'])
     nant = len(antenna_order)
     nbls = (nant*(nant+1))//2
     tsamp = params['deltat_s']*ntint*u.s
@@ -155,8 +145,8 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
     delays = np.zeros(len(bname), dtype=np.int)
     for i, bn in enumerate(bname):
         ant1, ant2 = bn.split('-')
-        delays[i] = MFSPARAMS['outrigger_delays'].get(int(ant1), 0)-\
-                    MFSPARAMS['outrigger_delays'].get(int(ant2), 0)
+        delays[i] = T3PARAMS['outrigger_delays'].get(int(ant1), 0)-\
+                    T3PARAMS['outrigger_delays'].get(int(ant2), 0)
 
     # Process each corr node separately
     for corr, corrfile in filelist.items():
@@ -187,10 +177,7 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                         np.ones(framespblock)*pt_dec
                     )
                     buvw = np.array([bu, bv, bw]).T
-                    print(bw.shape)
                     ant_bw = bw[refidxs].T
-                    print(ant_bw.shape)
-                    # TODO: This needs to be per antenna
                     data = np.fromfile(
                         cfhandler,
                         dtype=np.float32,
@@ -200,17 +187,11 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                     data = data[..., 0] + 1.j*data[..., 1]
                     data = data.reshape(framespblock, nbls, len(fobs_corr_full), params['npol'])[..., [0, -1]]
                     total_delay = np.zeros((framespblock, nbls))
-                    print('total_delay: ', total_delay.shape)
-                    print('ant_bw: ', ant_bw.shape)
                     for bni, bn in enumerate(bname):
                         ant1, ant2 = bn.split('-')
-                        total_delay[:, bni] = delays[bni] + ((ant_bw[:, antenna_order.index(int(ant1))]
-                            -ant_bw[:, antenna_order.index(int(ant2))])*u.m/c.c).to_value(u.nanosecond)
+                        total_delay[:, bni] = delays[bni] + ((ant_bw[:, antenna_order.index(int(ant1))]-ant_bw[:, antenna_order.index(int(ant2))])*u.m/c.c).to_value(u.nanosecond)
                     total_delay = total_delay[:, :, np.newaxis, np.newaxis]
-                    print('total_delay: ', total_delay.shape)
                     vis_model = np.exp(2j*np.pi*fobs_corr_full[:, np.newaxis]*total_delay)
-                    print('vis_model: ', vis_model.shape)
-                    print('data: ', data.shape)
                     vis_model = vis_model.astype(np.complex64)
                     data /= vis_model
                     if nfint > 1:
@@ -226,11 +207,10 @@ def generate_T3_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARA
                     )
     return outname
 
-def plot_image(imname, verbose=False, outname=None, show=True,
-              expected_point=None):
+def plot_image(imname, verbose=False, outname=None, show=True, expected_point=None):
     """Plots an image from the casa-generated image file.
 
-    Paramters
+    Parameters
     ---------
     imname : str
         The name full path of the image file.
@@ -344,7 +324,7 @@ def read_bfweights(bfweights, bfdir):
         bfparams = yaml.load(yamlf, Loader=yaml.FullLoader)
     if 'cal_solutions' in bfparams.keys():
         bfparams = bfparams['cal_solutions']
-    antenna_order = bfparams.get('antenna_order', ANTENNA_ORDER)
+    antenna_order = bfparams.get('antenna_order', T3PARAMS['antennas'])
     corr_order = bfparams.get('corr_order', CORR_ORDER)
     gains = np.zeros(
         (len(antenna_order), len(corr_order), 48, 2),
@@ -419,7 +399,7 @@ def calibrate_T3ms(msname, bfweights, bfdir, dedisp_mask=None):
     data = data.swapaxes(0, 1).reshape((-1, len(fobs), data.shape[-1]))
     flags = flags.swapaxes(0, 1).reshape((-1, len(fobs), flags.shape[-1]))
     # dedisp_flags = np.load(dedisp_mask)
-    # check size 
+    # check size
     # data[data!=data] = np.nanmean(data) this should be okay now
     with table('{0}.ms'.format(msname), readonly=False) as tb:
         tb.putcol('CORRECTED_DATA', data)

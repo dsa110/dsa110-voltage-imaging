@@ -3,6 +3,8 @@
 import subprocess
 import json, os, glob
 import pipes
+import yaml
+from dsautils import cnf
 
 def delete_remote(host, path):
     """Delete remote file"""
@@ -42,6 +44,18 @@ def check_voltages(candname):
             print('Found header:',corr)
 
     writefile(dd, filename)
+
+def load_params(paramfile):
+    with open(paramfile) as yamlf:
+        T3params = yaml.load(yamlf, Loader=yaml.FullLoader)['T3corr']
+    conf = cnf.Conf()
+    corrconf = conf.get('corr')
+    mfsconf = conf.get('fringe')
+    T3params['ch0'] = corrconf['ch0']
+    T3params['f0_GHz'] = corrconf['f0_GHz']
+    T3params['antennas'] = list(corrconf['antenna_order'].values())[:63]
+    T3params['outrigger_delays'] = mfsconf['outrigger_delays']
+    return T3params
 
 def rsync_file(infile, outfile):
     """Rsyncs a file from the correlator machines.

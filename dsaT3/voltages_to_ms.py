@@ -11,22 +11,18 @@ import multiprocessing
 import queue
 import argparse
 import time
-import yaml
 from pkg_resources import resource_filename
 from astropy.time import Time
 import astropy.units as u
 from dsautils.coordinates import get_declination, get_elevation
-from dsaT3.utils import rsync_file
-from dsaT3.T3imaging import generate_T3_uvh5
 from dsacalib.ms_io import uvh5_to_ms
-from dsautils import cnf
+from dsaT3.utils import rsync_file, load_params
+from dsaT3.T3imaging import generate_T3_uvh5
 
 NPROC = 8
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
-with open(PARAMFILE) as YAMLF:
-    T3PARAMS = yaml.load(YAMLF, Loader=yaml.FullLoader)['T3corr']
-CONF = cnf.Conf()
-CORR_LIST = list(CONF.get('corr')['ch0'].keys())
+T3PARAMS = load_params(PARAMFILE)
+CORR_LIST = list(T3PARAMS['ch0'].keys())
 
 def rsync_handler(
         rsync_queue,
@@ -303,6 +299,8 @@ def __main__(candname, datestring, ntint, nfint, start_offset, end_offset):
         hdf5files,
         '{0}/{1}'.format(T3PARAMS['msdir'], candname)
     )
+    for hdf5file in hdf5files:
+        os.remove(hdf5file)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
