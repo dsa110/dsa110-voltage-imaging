@@ -1,20 +1,14 @@
 """Calibrate and image measurement sets from T3 visibilities.
 """
 import yaml
-import h5py
 import numpy as np
 from pkg_resources import resource_filename
 import matplotlib.pyplot as plt
 import astropy.units as u
-import astropy.constants as c
 from astropy.coordinates import Angle
-from antpos.utils import get_itrf
 import casatools as cc
 from casacore.tables import table
-from dsamfs.io import initialize_uvh5_file, update_uvh5_file
 from dsacalib.ms_io import extract_vis_from_ms
-from dsacalib.fringestopping import calc_uvw
-import dsacalib.constants as ct
 from dsaT3.utils import load_params
 
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')

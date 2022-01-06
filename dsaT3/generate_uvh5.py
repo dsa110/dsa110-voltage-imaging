@@ -1,19 +1,13 @@
 """Create uvh5 files from T3 visibilities.
 """
 import os
-import yaml
 import h5py
 import numpy as np
 from pkg_resources import resource_filename
-import matplotlib.pyplot as plt
 import astropy.units as u
 import astropy.constants as c
-from astropy.coordinates import Angle
 from antpos.utils import get_itrf
-import casatools as cc
-from casacore.tables import table
 from dsamfs.io import initialize_uvh5_file, update_uvh5_file
-from dsacalib.ms_io import extract_vis_from_ms
 from dsacalib.fringestopping import calc_uvw
 import dsacalib.constants as ct
 from dsaT3.utils import load_params
@@ -22,7 +16,8 @@ PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 T3PARAMS = load_params(PARAMFILE)
 NPOL_OUT = 2
 
-def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS, start_offset=None, end_offset=None):
+def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
+                  start_offset=None, end_offset=None) -> str:
     """Generates a measurement set from the T3 correlations.
 
     Parameters
@@ -61,7 +56,7 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
         end_offset = params['nsubint']//ntint
 
     # Parse further parameters
-    vis_params = parse_visibility_parameters(params, ntint)
+    vis_params = parse_visibility_parameters(params, tstart, ntint)
 
     # Determine which times to extract
     tobs = vis_params['tobs'][start_offset:end_offset]
@@ -103,14 +98,27 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
                 if start_offset is not None:
                     cfhandler.seek(start_offset*32*size_params['itemspframe'])
 
-                for i in range(nblocks):
+                for i in range(size_params['nblocks']):
+                    # Define the time that we are reading in for this block
+                    tobs_block = tobs[
+                        i*size_params['framespblock']:(i+1)*size_params['framespblock']]
 
-                    buvw, ant_bw = calculate_uvw_and_geodelay(vis_params, size_params, tobs, pt_dec)
-                    total_delay = get_total_delay(vis_params['baseline_cable_delay'], ant_bw, vis_params['bname'], vis_params['antenna_order'])
+                    buvw, ant_bw = calculate_uvw_and_geodelay(
+                        vis_params,
+                        size_params,
+                        tobs_block, pt_dec)
+                    total_delay = get_total_delay(
+                        vis_params['baseline_cable_delay'],
+                        ant_bw,
+                        vis_params['bname'],
+                        vis_params['antenna_order'])
 
                     # If we're making a template we can't read the data
                     # Read a block of data from the correlated file.
-                    vis_chunk = get_visibility_chunk()
+                    vis_chunk = get_visibility_chunk(
+                        cfhandler,
+                        size_params['itemspblock'],
+                        size_params['input_chunk_shape'])
                     if vis_params['npols'] == 4 and NPOL_OUT == 2:
                         vis_chunk = vis_chunk.get_XX_YY(vis_chunk)
 
@@ -122,7 +130,13 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
                     # Squeeze the data in frequency - this has to be done *after* applying
                     # the delays
                     if nfint > 1:
-                        data = data.reshape(framespblock, nbls, len(fobs_corr), nfint, 2).mean(axis=3)
+                        data = data.reshape(
+                            size_params['output_chunk_shape'][0],
+                            size_params['output_chunk_shape'][1],
+                            size_params['output_chunk_shape'][2],
+                            nfint,
+                            size_params['output_chunk_shape'][3]
+                        ).mean(axis=3)
 
                     # If we are making a template, we want this data instead:
                     # data = np.zeros((framespblock, nbls, len(fobs_corr), nfint, 2), dtype=np.complex64)
@@ -131,16 +145,17 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
                     update_uvh5_file(
                         fhdf5,
                         data.astype(np.complex64),
-                        tobs.jd[i*framespblock:(i+1)*framespblock],
-                        tsamp,
-                        bname,
+                        tobs_block.jd,
+                        vis_params['tsamp'],
+                        vis_params['bname'],
                         buvw,
                         np.ones(data.shape, np.float32)
                     )
 
     return outname
 
-def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int, nfint: int) -> dict:
+def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int,
+                          nfint: int) -> dict:
     """Define size of frames and blocks in the uvh5 file.
 
     Parameters
@@ -162,7 +177,11 @@ def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int, 
     itemspblock = itemspframe*framespblock
     assert (end_offset - start_offset)%framespblock == 0
     nblocks = (end_offset-start_offset)//framespblock
-    input_chunk_shape = (framespblock, vis_params['nbls'], vis_params['nchan_corr'], vis_params['npol'])
+    input_chunk_shape = (
+        framespblock,
+        vis_params['nbls'],
+        vis_params['nchan_corr'],
+        vis_params['npol'])
     output_chunk_shape = (framespblock, vis_params['nbls'], vis_params['nfreq']//nfint, NPOL_OUT)
     size_params = {
         'framespblock': framespblock,
@@ -172,13 +191,15 @@ def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int, 
         'output_chunk_shape': output_chunk_shape}
     return size_params
 
-def parse_visibility_parameters(input_params: dict, ntint: int) -> dict:
+def parse_visibility_parameters(params: dict, tstart: 'astropy.time.Time', ntint: int) -> dict:
     """Parse details about the data to be extracted.
 
     Parameters
     ----------
-    input_params : dict
+    params : dict
         Parameters passed by the user definining the correlator and T3 system.
+    tstart : astropy.time.Time
+        Start time of the correlated visibility file.
     ntint : int
         The number of time bins integrated together in the correlated data
         compared to the native resolution.
@@ -223,7 +244,7 @@ def parse_visibility_parameters(input_params: dict, ntint: int) -> dict:
         'tobs': tobs,
         # Frequency
         'fobs': fobs,
-        'corr_ch0': params['ch0']
+        'corr_ch0': params['ch0'],
         'nchan_corr': params['nchan_corr'],
         # Polarization
         'npol': params['npol']}
@@ -254,7 +275,8 @@ def get_cable_delays(outrigger_delays: dict, bname: list) -> np.ndarray:
                     outrigger_delays.get(int(ant2), 0)
     return delays
 
-def calculate_uvw_and_geodelay(vis_params: dict, size_params: dict, tobs: np.ndarray, pt_dec: float) -> tuple:
+def calculate_uvw_and_geodelay(vis_params: dict, size_params: dict,
+                               tobs: np.ndarray, pt_dec: float) -> tuple:
     """Calculate the uvw coordinates in the correlated file.
 
     Parameters
@@ -277,7 +299,7 @@ def calculate_uvw_and_geodelay(vis_params: dict, size_params: dict, tobs: np.nda
     """
     bu, bv, bw = calc_uvw(
         vis_params['blen'],
-        tobs.mjd[i*size_params['framespblock']:(i+1)*size_params['framespblock']],
+        tobs.mjd,
         'HADEC',
         np.zeros(size_params['framespblock'])*u.rad,
         np.ones(size_params['framespblock'])*pt_dec
@@ -286,7 +308,8 @@ def calculate_uvw_and_geodelay(vis_params: dict, size_params: dict, tobs: np.nda
     ant_bw = bw[vis_params['refidxs']].T
     return buvw, ant_bw
 
-def get_total_delay(baseline_cable_delay: np.ndarray, ant_bw: np.ndarray, bname: list, antenna_order: list) -> np.ndarray:
+def get_total_delay(baseline_cable_delay: np.ndarray, ant_bw: np.ndarray, bname: list,
+                    antenna_order: list) -> np.ndarray:
     """Calculate total (cable plus geometric) delay for each baseline.
 
     Parameters
@@ -313,7 +336,8 @@ def get_total_delay(baseline_cable_delay: np.ndarray, ant_bw: np.ndarray, bname:
         ant1, ant2 = bn.split('-')
         idx1 = antenna_order.index(int(ant1))
         idx2 = antenna_order.index(int(ant2))
-        total_delay[:, bni] = baseline_cable_delay[bni] + ((ant_bw[:, idx1]-ant_bw[:, idx2])*u.m/c.c).to_value(u.nanosecond)
+        total_delay[:, bni] = baseline_cable_delay[bni] + (
+            (ant_bw[:, idx1]-ant_bw[:, idx2])*u.m/c.c).to_value(u.nanosecond)
     # Reshape to match data shape
     total_delay = total_delay[:, :, np.newaxis, np.newaxis]
     return total_delay
@@ -353,7 +377,8 @@ def get_XX_YY(vis_chunk: np.ndarray) -> np.ndarray:
     """
     return vis_chunk[..., [0, -1]]
 
-def get_visibility_chunk(cfhandler: "FileHandler", itemspblock: int, chunk_shape: tuple) -> np.ndarray:
+def get_visibility_chunk(cfhandler: "FileHandler", itemspblock: int,
+                         chunk_shape: tuple) -> np.ndarray:
     """Get a visibility chunk from the corr file open in `cfhandler`.
 
     Parameters

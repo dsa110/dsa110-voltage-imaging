@@ -17,7 +17,7 @@ import astropy.units as u
 from dsautils.coordinates import get_declination, get_elevation
 from dsacalib.ms_io import uvh5_to_ms
 from dsaT3.utils import rsync_file, load_params
-from dsaT3.T3imaging import generate_T3_uvh5
+from dsaT3.generate_uvh5 import generate_uvh5
 
 NPROC = 8
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
@@ -212,7 +212,7 @@ def uvh5_handler(candname: str, declination: "Manager().Queue", declination_lock
                 print('proc {0} is setting uvh5_done'.format(proc.pid))
                 uvh5_done = True
                 continue
-            uvh5name = generate_T3_uvh5(
+            uvh5name = generate_uvh5(
                 '{0}/{1}'.format(T3PARAMS['corrdir'], candname),
                 declination.value*u.deg,
                 tstart,
