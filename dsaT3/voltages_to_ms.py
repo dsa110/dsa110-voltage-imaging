@@ -25,15 +25,15 @@ T3PARAMS = load_params(PARAMFILE)
 CORR_LIST = list(T3PARAMS['ch0'].keys())
 
 def voltages_to_ms(candname: str, datestring: str, ntint: int, nfint: int,
-    start_offset: int, end_offset: int):
+                   start_offset: int, end_offset: int) -> None:
     """
     Correlate voltage files and convert to a measurement set.
 
     Parameters
     ----------
-    candname : 
+    candname : str
         The unique name of the candidate.
-    datestring : 
+    datestring : str
         The datestring the observation is archived under. Use 'current' if the
         data is from the current, unarchived observing run.
     ntint : int
@@ -98,7 +98,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, nfint: int,
         processes += [Process(
             target=uvh5_handler,
             args=(candname, declination, declination_lock, tstart, ntint, nfint, start_offset,
-                end_offset, uvh5_queue, ncorrfiles, ncorrfiles_lock),
+                  end_offset, uvh5_queue, ncorrfiles, ncorrfiles_lock),
             daemon=True)]
 
     # Start all processes in the pipeline
@@ -131,7 +131,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, nfint: int,
     for hdf5file in hdf5files:
         os.remove(hdf5file)
 
-def rsync_handler(rsync_queue: Manager.Queue, corr_queue: Manager.Queue, rsync: bool):
+def rsync_handler(rsync_queue: "Manager().Queue", corr_queue: "Manager().Queue",
+                  rsync: bool) -> None:
     """Rsyncs files, then updates `corr_queue`."""
     rsync_done = False
     while not rsync_done:
@@ -151,9 +152,9 @@ def rsync_handler(rsync_queue: Manager.Queue, corr_queue: Manager.Queue, rsync: 
                     os.symlink(srcfile, vfile)
             corr_queue.put(vfile)
 
-def corr_handler(deltat_ms: float, deltaf_MHz: float, corr_queue: Manager.Queue,
-    uvh5_queue: Manager.Queue, ncorrfiles: Manager.Value,
-     ncorrfiles_lock: Manager.Lock):
+def corr_handler(deltat_ms: float, deltaf_MHz: float, corr_queue: "Manager().Queue",
+                 uvh5_queue: "Manager().Queue", ncorrfiles: "Manager().Value",
+                 ncorrfiles_lock: "Manager().Lock") -> None:
     """Correlates data using T3 cpu correlator."""
     corr_done = False
     while not corr_done:
@@ -173,7 +174,8 @@ def corr_handler(deltat_ms: float, deltaf_MHz: float, corr_queue: Manager.Queue,
             if not os.path.exists('{0}.corr'.format(vfile)):
                 command = (
                     '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/dsacorr '
-                    f'-d {vfile} -o {vfile}.corr -t {deltat_ms} -f {deltaf_MHZ} -a {len(T3PARAMS["antennas"])}')
+                    f'-d {vfile} -o {vfile}.corr -t {deltat_ms} -f {deltaf_MHz} '
+                    f'-a {len(T3PARAMS["antennas"])}')
                 print(command)
                 process = subprocess.Popen(
                     command,
@@ -187,9 +189,10 @@ def corr_handler(deltat_ms: float, deltaf_MHz: float, corr_queue: Manager.Queue,
             corr_files[corr] = '{0}.corr'.format(vfile)
             uvh5_queue.put(corr_files)
 
-def uvh5_handler(candname: str, declination: Manager.Value, declination_lock: Manager.Lock,
-    tstart: astropy.time.Time, ntint: int, nfint: int, start_offset: int, end_offset: int,
-    uvh5_queue: Manager.Queue, ncorrfiles: Manager.Value, ncorrfiles_lock: Manager.Lock):
+def uvh5_handler(candname: str, declination: "Manager().Queue", declination_lock: "Manager().Queue",
+                 tstart: "astropy.time.Time", ntint: int, nfint: int, start_offset: int,
+                 end_offset: int, uvh5_queue: "Manager().Queue", ncorrfiles: "Manager().Value",
+                 ncorrfiles_lock: "Manager().Lock") -> None:
     """Convert correlated data to uvh5."""
     proc = multiprocessing.current_process()
     uvh5_done = False
@@ -245,8 +248,26 @@ def get_input_file_locations(candname: str, datestring: str) -> tuple:
     else:
         rsync = False
         filenames = [
+            f'{T3PARAMS["archivedir"]}/{datestring}/{corr}_{candname}_data.out'
+            for corr in CORR_LIST]
+        headername = f'{T3PARAMS["archivedir"]}/{datestring}/{candname}.json'
+    return filenames, headername, rsync
 
-def parse_commandline_arguments() -> argparse.Namespace:
+def get_output_file_locations(candname: str) -> tuple:
+    """Determine where to put intermediate output files (correlated and uvh5)"""
+    name_roots = [f'{T3PARAMS["corrdir"]}/{corr}_{candname}' for corr in CORR_LIST]
+    outnames = [f'{name_root}_data.out' for name_root in name_roots]
+    hdf5names = [f'{name_root}.hdf5' for name_root in name_roots]
+    return outnames, hdf5names
+
+def get_tstart_from_json(headername: str) -> "astropy.time.Time":
+    """Extract the start time from the header file."""
+    with open(headername) as jsonf:
+        metadata = json.load(jsonf)
+    tstart = Time(metadata['mjds'], format='mjd')
+    return tstart
+
+def parse_commandline_arguments() -> "argparse.Namespace":
     """Parse commandline arguments."""
     parser = argparse.ArgumentParser(
         description='Correlate candidate voltage files.'
@@ -295,6 +316,6 @@ def parse_commandline_arguments() -> argparse.Namespace:
     return args
 
 if __name__ == '__main__':
-    args = parse_commandline_arguments()
-    voltages_to_ms(args.candname, args.datestring, ntint=args.ntint, nfint=args.nfint,
-        start_offset=args.startoffset, end_offset=args.stopoffset)
+    ARGS = parse_commandline_arguments()
+    voltages_to_ms(ARGS.candname, ARGS.datestring, ntint=ARGS.ntint, nfint=ARGS.nfint,
+                   start_offset=ARGS.startoffset, end_offset=ARGS.stopoffset)
