@@ -23,7 +23,8 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
     Parameters
     ----------
     name : str
-        The name of the measurement set.
+        The name of the measurement set.  If 'template', won't actually read in
+        any correlated data.
     pt_dec : quantity
         The pointing declination in degrees or equivalient.
     tstart : astropy.time.Time instance
@@ -87,8 +88,7 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
                 pt_dec.to_value(u.rad),
                 vis_params['antenna_order'],
                 fobs_corr,
-                vis_params['antenna_cable_delays']
-            )
+                vis_params['antenna_cable_delays'])
 
             # Open the correlated file and seek the desired start position
             # If we're making a template we can't open this file
@@ -113,33 +113,35 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
                         vis_params['bname'],
                         vis_params['antenna_order'])
 
-                    # If we're making a template we can't read the data
-                    # Read a block of data from the correlated file.
-                    vis_chunk = get_visibility_chunk(
-                        cfhandler,
-                        size_params['itemspblock'],
-                        size_params['input_chunk_shape'])
-                    if vis_params['npols'] == 4 and NPOL_OUT == 2:
-                        vis_chunk = vis_chunk.get_XX_YY(vis_chunk)
+                    if name == 'template':
+                        # If we're making a template we can't don't need to read the data
+                        # Just fill with zeros instead
+                        data = np.zeros(size_params['output_chunk_shape'], dtype=np.complex64)
 
-                    # Apply outrigger and geometric delays
-                    # We won't perform any phasing here - we just write the data
-                    # directly to the uvh5 file.
-                    vis_model = get_visibility_model(total_delay, fobs_corr_full)
-                    data /= vis_model
-                    # Squeeze the data in frequency - this has to be done *after* applying
-                    # the delays
-                    if nfint > 1:
-                        data = data.reshape(
-                            size_params['output_chunk_shape'][0],
-                            size_params['output_chunk_shape'][1],
-                            size_params['output_chunk_shape'][2],
-                            nfint,
-                            size_params['output_chunk_shape'][3]
-                        ).mean(axis=3)
+                    else:
+                        # Read a block of data from the correlated file.
+                        vis_chunk = get_visibility_chunk(
+                            cfhandler,
+                            size_params['itemspblock'],
+                            size_params['input_chunk_shape'])
+                        if vis_params['npols'] == 4 and NPOL_OUT == 2:
+                            vis_chunk = vis_chunk.get_XX_YY(vis_chunk)
 
-                    # If we are making a template, we want this data instead:
-                    # data = np.zeros((framespblock, nbls, len(fobs_corr), nfint, 2), dtype=np.complex64)
+                        # Apply outrigger and geometric delays
+                        # We won't perform any phasing here - we just write the data
+                        # directly to the uvh5 file.
+                        vis_model = get_visibility_model(total_delay, fobs_corr_full)
+                        data /= vis_model
+                        # Squeeze the data in frequency - this has to be done *after* applying
+                        # the delays
+                        if nfint > 1:
+                            data = data.reshape(
+                                size_params['output_chunk_shape'][0],
+                                size_params['output_chunk_shape'][1],
+                                size_params['output_chunk_shape'][2],
+                                nfint,
+                                size_params['output_chunk_shape'][3]
+                            ).mean(axis=3)
 
                     # Write the data to the uvh5 file
                     update_uvh5_file(
@@ -149,8 +151,7 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
                         vis_params['tsamp'],
                         vis_params['bname'],
                         buvw,
-                        np.ones(data.shape, np.float32)
-                    )
+                        np.ones(data.shape, np.float32))
 
     return outname
 
