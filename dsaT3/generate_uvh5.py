@@ -23,7 +23,7 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
     Parameters
     ----------
     name : str
-        The name of the measurement set.  If 'template', won't actually read in
+        The name of the measurement set.  If ends in 'template', won't actually read in
         any correlated data.
     pt_dec : quantity
         The pointing declination in degrees or equivalient.
@@ -55,6 +55,8 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
         start_offset = 0
     if end_offset is None:
         end_offset = params['nsubint']//ntint
+
+    template = name[-8:] == 'template'
 
     # Parse further parameters
     vis_params = parse_visibility_parameters(params, tstart, ntint)
@@ -113,7 +115,7 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
                         vis_params['bname'],
                         vis_params['antenna_order'])
 
-                    if name == 'template':
+                    if template:
                         # If we're making a template we can't don't need to read the data
                         # Just fill with zeros instead
                         data = np.zeros(size_params['output_chunk_shape'], dtype=np.complex64)
