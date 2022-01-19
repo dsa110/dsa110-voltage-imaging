@@ -179,7 +179,7 @@ class TemplateMSVis():
         # currently used to convert from uvh5 to ms.
         start_chan = np.argmin(np.abs(self.freq-uvh5_freq[0]))
         end_chan = start_chan + self.nfreq_corr
-        self.vis[:, start_chan:end_chan, :] = uvh5_vis.reshape(uvh5file.Nblts, uvh5file.Nfreqs, uvh5file.Npols)
+        self.vis[:, start_chan:end_chan, :] = np.conjugate(uvh5_vis.reshape(uvh5file.Nblts, uvh5file.Nfreqs, uvh5file.Npols))
         self.flags[:, start_chan:end_chan, :] = uvh5_flags.reshape(uvh5file.Nblts, uvh5file.Nfreqs, uvh5file.Npols)
 
     def write_vis_and_flags(self):

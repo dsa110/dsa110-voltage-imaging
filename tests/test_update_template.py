@@ -29,7 +29,7 @@ def test_update_visibilities_same(tmpdir: str, tol: float=TOL) -> None:
         uvh5_flag = uvh5_flag[:, ::-1, :]
 
     with table(template_filepath) as tb:
-        assert arrays_equal(np.array(tb.DATA[:]), uvh5_vis, tol)
+        assert arrays_equal(np.array(tb.DATA[:]), np.conjugate(uvh5_vis), tol)
         assert np.all(np.array(tb.FLAG[:]) == uvh5_flag)
 
         with table(SINGLE_CORR_MS) as tb2:
@@ -54,7 +54,7 @@ def test_update_visibilities_diff(tmpdir: str, tol: float=TOL) -> None:
         uvh5_flag = uvh5_flag[:, ::-1, :]
 
     with table(template_filepath) as tb:
-        assert arrays_equal(np.array(tb.DATA[:]), uvh5_vis, tol)
+        assert arrays_equal(np.array(tb.DATA[:]), np.conjugate(uvh5_vis), tol)
         assert np.all(np.array(tb.FLAG[:]) == uvh5_flag)
 
 def test_update_metadata_same(tmpdir: str, tol: float=TOL) -> None:
