@@ -125,7 +125,7 @@ class TemplateMSMD():
         uvw_m = uvw_m.astype(self.float_type)
 
         with table(self.filepath, readonly=False) as tb:
-            tb.putcol('UVW', uvw_m)
+            tb.putcol('UVW', -1*uvw_m)
 
     def update_direction(self, ra_rad: float, dec_rad: float):
         """Update the directions int he template ms with the true direction."""

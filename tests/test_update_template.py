@@ -72,6 +72,11 @@ def test_update_metadata_same(tmpdir: str, tol: float=TOL) -> None:
     assert_times_match(UV, template_filepath, tol)
     assert_uvws_match(UV, template_filepath, tol)
     assert_directions_match(UV, template_filepath, tol)
+    
+    with table(template_filepath) as tb:
+        with table(SINGLE_CORR_MS) as tb2:
+                assert arrays_equal(np.array(tb.UVW[:]), np.array(tb2.UVW[:]), tol)
+                assert arrays_equal(np.array(tb.TIME[:]), np.array(tb2.TIME[:]), tol)
 
 def test_update_metadata_diff_obs(tmpdir: str, tol: float=TOL) -> None:
     """Test that metadata is updated successfully using a different 
@@ -117,7 +122,7 @@ def assert_times_match(UV, template_filepath, tol) -> None:
 def assert_uvws_match(UV, template_filepath, tol) -> None:
     """Assert that uvw's between the template file and the UV object match."""
     with table(template_filepath) as tb:
-        assert arrays_equal(np.array(tb.UVW[:]), UV.uvw_array, tol)
+        assert arrays_equal(np.array(tb.UVW[:]), -1*UV.uvw_array, tol)
 
 def assert_directions_match(UV, template_filepath, tol) -> None:
     """Update the directions in the template ms with the true direction."""
