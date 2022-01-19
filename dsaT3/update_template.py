@@ -7,6 +7,7 @@ from casacore.tables import table
 from astropy.time import Time
 import astropy.units as u
 import dsautils.dsa_syslog as dsl
+from dsamfs.fringestopping import calc_uvw_blt
 from dsaT3.utils import load_params
 from dsacalib.utils import direction as pointing_direction
 
@@ -70,7 +71,8 @@ def update_metadata(template_path: str, uvh5_filepath: str) -> None:
 
     template_ms.update_obstime(convert_jd_to_mjds(UV.time_array))
 
-    template_ms.update_uvw(UV.uvw_array)
+    uvw_m = calculate_uvw(UV)
+    template_ms.update_uvw(uvw_m)
 
     ra_rad, dec_rad = get_pointing(UV)
     template_ms.update_direction(ra_rad, dec_rad)
@@ -83,9 +85,50 @@ def get_pointing(uvh5file: UVData) -> tuple:
         obstime_mjd)
     ra_rad, dec_rad = pointing.J2000()
     return ra_rad, dec_rad
-    
+
+def calculate_uvw(uvh5file: UVData) -> np.ndarray:
+    """Calculate the uvw coordinates for a transit observation.
+
+    The uvw array is calculated for the midpoint of the 2-s observation to
+    decrease the time needed to create the measurement set.
+
+    This function currently does not reproduce the uvw coordinates in the
+    measurement set created through a conversion through uvfits. This is
+    using the same method as used in the `uvh5_to_ms`, and may be an issue
+    with precision in the uvfits file format.  Differences are on
+    the order of 0.1 mm.
+    """
+    time_mjd = convert_jd_to_mjd(uvh5file.time_array.mean())
+    pt_dec = uvh5file.extra_keywords['phase_center_dec']*u.rad
+    blen = calculate_blen(uvh5file)
+
+    uvw = calc_uvw_blt(
+        blen,
+        np.ones(uvh5file.Nbls)*time_mjd,
+        'HADEC', np.zeros(uvh5file.Nbls)*u.rad,
+        np.ones(uvh5file.Nbls)*pt_dec)
+
+    uvw = np.tile(uvw[np.newaxis, :, :], (uvh5file.Ntimes, 1, 1)).reshape(uvh5file.Nblts, 3)
+    # The calc_uvw_blt function returns uvw coordinates with UVData
+    # sign convention.
+    # We multiply this by -1 to match the CASA sign convention.
+    uvw = -1.*uvw
+
+    return uvw
+
+def calculate_blen(uvh5file: UVData) -> np.ndarray:
+    """Extract the baseline lenghts from the UVData object."""
+    blen = np.zeros((uvh5file.Nbls, 3))
+    for i, ant1 in enumerate(uvh5file.ant_1_array[:uvh5file.Nbls]):
+        ant2 = uvh5file.ant_2_array[i]
+        blen[i, ...] = uvh5file.antenna_positions[ant2, :] - uvh5file.antenna_positions[ant1, :]
+    return blen
+
 def update_weights(simulated_dynspec: np.ndarray, template_filepath: str) -> None:
-    """Updates a template file with weights based on pulse profile and DM."""
+    """Updates a template file with weights based on pulse profile and DM.
+    
+    Here, we need to set sigma_spectrum and sigma; weight_spectrum and weight.
+    """
     pass
 
 class TemplateMSMD():
@@ -125,7 +168,7 @@ class TemplateMSMD():
         uvw_m = uvw_m.astype(self.float_type)
 
         with table(self.filepath, readonly=False) as tb:
-            tb.putcol('UVW', -1*uvw_m)
+            tb.putcol('UVW', uvw_m)
 
     def update_direction(self, ra_rad: float, dec_rad: float):
         """Update the directions int he template ms with the true direction."""
@@ -190,4 +233,10 @@ class TemplateMSVis():
 
 def convert_jd_to_mjds(time_jd):
     """Convert times between jd (Julian Date) and mjds (Modified Julian Date Seconds)."""
-    return (Time(time_jd, format='jd').mjd*u.d).to_value(u.s)
+    time_mjd = convert_jd_to_mjd(time_jd)
+    return (time_mjd*u.d).to_value(u.s)
+
+def convert_jd_to_mjd(time_jd):
+    """Convert times between jd (Julian Date) and mjd (Modified Julian Date)."""
+    return Time(time_jd, format='jd').mjd
+

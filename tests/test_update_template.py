@@ -59,7 +59,6 @@ def test_update_visibilities_diff(tmpdir: str, tol: float=TOL) -> None:
 
 def test_update_metadata_same(tmpdir: str, tol: float=TOL) -> None:
     """Test that metadata is updated successfully."""
-    # TODO: use a data path from a different observation
     template_filepath = f'{tmpdir}/template_testmdsame.ms'
     uvh5_filepath = SINGLE_CORR_UVH5_SAME
 
@@ -70,19 +69,23 @@ def test_update_metadata_same(tmpdir: str, tol: float=TOL) -> None:
     UV.read(uvh5_filepath, file_type='uvh5')
 
     assert_times_match(UV, template_filepath, tol)
-    assert_uvws_match(UV, template_filepath, tol)
+    assert_uvws_match(UV, template_filepath, 1.)
     assert_directions_match(UV, template_filepath, tol)
     
     with table(template_filepath) as tb:
         with table(SINGLE_CORR_MS) as tb2:
-                assert arrays_equal(np.array(tb.UVW[:]), np.array(tb2.UVW[:]), tol)
-                assert arrays_equal(np.array(tb.TIME[:]), np.array(tb2.TIME[:]), tol)
+            # The uvw coordinates are calculated ~ 1 second earlier in the
+            # SINGLE_CORR_MS, so allow a large tolerance here.
+            assert arrays_equal(np.array(tb.UVW[:]), np.array(tb2.UVW[:]), 1e-3)
+            # The times are also corrupted by the conversion through uvfits
+            # and so they don't match exactly.  The means should match.
+            assert arrays_equal(np.array(tb.TIME[:]), np.array(tb2.TIME[:]), 1e-3)
+            assert np.abs(np.mean(np.array(tb.TIME[:]))-np.mean(np.array(tb2.TIME[:]))) < tol
 
 def test_update_metadata_diff_obs(tmpdir: str, tol: float=TOL) -> None:
     """Test that metadata is updated successfully using a different 
     observation than was used to generate the template.
     """
-    # TODO: use a data path from a different observation
     template_filepath = f'{tmpdir}/template_testmddiff.ms'
     uvh5_filepath = SINGLE_CORR_UVH5_DIFF
 
@@ -93,7 +96,7 @@ def test_update_metadata_diff_obs(tmpdir: str, tol: float=TOL) -> None:
     UV.read(uvh5_filepath, file_type='uvh5')
 
     assert_times_match(UV, template_filepath, tol)
-    assert_uvws_match(UV, template_filepath, tol)
+    assert_uvws_match(UV, template_filepath, 1.)
     assert_directions_match(UV, template_filepath, tol)
 
 def assert_times_match(UV, template_filepath, tol) -> None:
@@ -119,10 +122,16 @@ def assert_times_match(UV, template_filepath, tol) -> None:
     with table(f'{template_filepath}/SOURCE') as tb:
         assert arrays_equal(np.array(tb.TIME[:]), tstart_source, tol)
 
-def assert_uvws_match(UV, template_filepath, tol) -> None:
-    """Assert that uvw's between the template file and the UV object match."""
+def assert_uvws_match(UV, template_filepath, tol=1.) -> None:
+    """Assert that uvw's between the template file and the UV object match.
+    
+    Because the uvw's in the UV object are calculated for the incorrect time,
+    there will be a discrepancy, so we set a large tolerence.  This test is
+    still useful to ensure that the direction of the UVW array are the
+    same between the two files.
+    """
     with table(template_filepath) as tb:
-        assert arrays_equal(np.array(tb.UVW[:]), -1*UV.uvw_array, tol)
+        assert arrays_equal(np.array(tb.UVW[:]), UV.uvw_array, tol)
 
 def assert_directions_match(UV, template_filepath, tol) -> None:
     """Update the directions in the template ms with the true direction."""
