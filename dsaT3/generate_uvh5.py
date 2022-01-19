@@ -1,6 +1,7 @@
 """Create uvh5 files from T3 visibilities.
 """
 import os
+import tqdm
 import h5py
 import numpy as np
 from pkg_resources import resource_filename
@@ -92,6 +93,7 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
                 fobs_corr,
                 vis_params['antenna_cable_delays'])
 
+            # TODO: rearrange so that corrfile does not need to be opened when creating a template
             # Open the correlated file and seek the desired start position
             # If we're making a template we can't open this file
             # How can we open it with "with" if we want the alternative to do nothing?
@@ -100,7 +102,7 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
                 if start_offset is not None:
                     cfhandler.seek(start_offset*32*size_params['itemspframe'])
 
-                for i in range(size_params['nblocks']):
+                for i in tqdm.tqdm(range(size_params['nblocks'])):
                     # Define the time that we are reading in for this block
                     tobs_block = tobs[
                         i*size_params['framespblock']:(i+1)*size_params['framespblock']]
@@ -110,7 +112,7 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
                         size_params,
                         tobs_block, pt_dec)
                     total_delay = get_total_delay(
-                        vis_params['baseline_cable_delay'],
+                        vis_params['baseline_cable_delays'],
                         ant_bw,
                         vis_params['bname'],
                         vis_params['antenna_order'])
@@ -126,18 +128,18 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
                             cfhandler,
                             size_params['itemspblock'],
                             size_params['input_chunk_shape'])
-                        if vis_params['npols'] == 4 and NPOL_OUT == 2:
-                            vis_chunk = vis_chunk.get_XX_YY(vis_chunk)
+                        if vis_params['npol'] == 4 and NPOL_OUT == 2:
+                            vis_chunk = get_XX_YY(vis_chunk)
 
                         # Apply outrigger and geometric delays
                         # We won't perform any phasing here - we just write the data
                         # directly to the uvh5 file.
                         vis_model = get_visibility_model(total_delay, fobs_corr_full)
-                        data /= vis_model
+                        vis_chunk /= vis_model
                         # Squeeze the data in frequency - this has to be done *after* applying
                         # the delays
                         if nfint > 1:
-                            data = data.reshape(
+                            vis_chunk = vis_chunk.reshape(
                                 size_params['output_chunk_shape'][0],
                                 size_params['output_chunk_shape'][1],
                                 size_params['output_chunk_shape'][2],
@@ -148,12 +150,12 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
                     # Write the data to the uvh5 file
                     update_uvh5_file(
                         fhdf5,
-                        data.astype(np.complex64),
+                        vis_chunk.astype(np.complex64),
                         tobs_block.jd,
                         vis_params['tsamp'],
                         vis_params['bname'],
                         buvw,
-                        np.ones(data.shape, np.float32))
+                        np.ones(vis_chunk.shape, np.float32))
 
     return outname
 
@@ -185,8 +187,9 @@ def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int,
         vis_params['nbls'],
         vis_params['nchan_corr'],
         vis_params['npol'])
-    output_chunk_shape = (framespblock, vis_params['nbls'], vis_params['nfreq']//nfint, NPOL_OUT)
+    output_chunk_shape = (framespblock, vis_params['nbls'], vis_params['nchan_corr']//nfint, NPOL_OUT)
     size_params = {
+        'itemspframe': itemspframe,
         'framespblock': framespblock,
         'itemspblock': itemspblock,
         'nblocks': nblocks,

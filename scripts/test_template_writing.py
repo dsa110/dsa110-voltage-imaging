@@ -6,6 +6,7 @@ import subprocess
 import datetime
 from pkg_resources import resource_filename
 import astropy.units as u
+from dsacalib.ms_io import uvh5_to_ms
 from dsaT3.utils import load_params
 from dsaT3.voltages_to_ms import get_tstart_from_json
 from dsaT3.generate_uvh5 import generate_uvh5
@@ -16,7 +17,7 @@ PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 NTINT = 512
 NFINT = 8
 START_OFFSET = 0
-STOP_OFFSET = -1
+STOP_OFFSET = None
 
 VOLTAGE_PATH = 'corr08_J1459+7140obw_data.out'
 HEADER_PATH = 'J1459+7140obw.json'
@@ -35,48 +36,55 @@ class Logger():
 
 LOGGER = Logger()
 
-def test_template_writing():
+def test_template_writing() -> None:
+    """Generate template and data ms's using the same metadata.
+
+    These are used in tests of writing the templates.
+    """
     tstart = get_tstart_from_json(HEADER_PATH)
-
     correlation_parameters = get_correlation_parameters(NTINT)
-    correlated_paths = {}
 
+    correlated_paths = dict({})
     LOGGER.info('Correlating data.')
     correlated_path = correlate_file(VOLTAGE_PATH, correlation_parameters)
 
-    corrnode = re.findall('corr\d\d', correlated_path)
+    corrnode = re.findall('corr\d\d', correlated_path)[0]
     correlated_paths[corrnode] = correlated_path
-
     correlated_paths_string = '\n'.join([
         f'{key} {value}' for key, value in correlated_paths.items()])
     LOGGER.info(f'Correlated_files:\n{correlated_paths_string}')
 
-    LOGGER.info('Making template uvh5 file.')
-    template_path = generate_uvh5(
-        f'{correlation_parameters["corrdir"]}/{corrnode}_template',
-        DECLINATION_DEG*u.deg,
-        tstart,
-        ntint=NTINT,
-        nfint=NFINT,
-        filelist=correlated_paths,
-        start_offset=START_OFFSET,
-        end_offset=STOP_OFFSET)
+    LOGGER.info('Making template files.')
+    generate_ms('template', tstart, correlated_paths, correlation_parameters)
 
-    LOGGER.info('Making data uvh5 file.')
-    data_path = generate_uvh5(
-        f'{correlation_parameters["corrdir"]}/{corrnode}_data',
-        DECLINATION_DEG*u.deg,
-        tstart,
-        ntint=NTINT,
-        nfint=NFINT,
-        filelist=correlated_paths,
-        start_offset=START_OFFSET,
-        end_offset=STOP_OFFSET)
-    LOGGER.info(f'Created template file {template_path}.')
-    LOGGER.info(f'Created data file {data_path}')
+    LOGGER.info('Making data files.')
+    generate_ms('data', tstart, correlated_paths, correlation_parameters)
+
     LOGGER.info('Finished.')
 
-def get_correlation_parameters(ntint: int):
+def generate_ms(candname: str, tstart: "astropy.time.Time", correlated_paths: dict, correlation_parameters: dict) -> None:
+    """Generate a measurement set."""
+    outfile_name = f'{correlation_parameters["corrdir"]}/{candname}'
+    # if os.path.exists(f'{outfile_name}_{corrnode}.hdf5'):
+    #     os.remove(f'{outfile_name}_{corrnode}.hdf5')
+
+    uvh5_path = generate_uvh5(
+        outfile_name,
+        DECLINATION_DEG*u.deg,
+        tstart,
+        ntint=NTINT,
+        nfint=NFINT,
+        filelist=correlated_paths,
+        start_offset=START_OFFSET,
+        end_offset=STOP_OFFSET)
+    LOGGER.info(f'Created {uvh5_path}.')
+
+    # Generate ms
+    outfile_name = f'{correlation_parameters["msdir"]}/{candname}'
+    uvh5_to_ms([uvh5_path], outfile_name, fringestop=False)
+    LOGGER.info(f'Created {outfile_name}.ms.')
+
+def get_correlation_parameters(ntint: int) -> dict:
     input_params = load_params(PARAMFILE)
     deltat_ms = ntint*input_params['deltat_s']*1e3
     nants = len(input_params['antennas'])
@@ -86,12 +94,14 @@ def get_correlation_parameters(ntint: int):
         'nants': nants,
         'deltat_ms': deltat_ms,
         'deltaf_MHz': input_params['deltaf_MHz'],
-        'corrdir': corrdir
+        'corrdir': corrdir,
+        'msdir': input_params['msdir']
     }
 
     return params
 
-def correlate_file(voltage_path, params):
+def correlate_file(voltage_path: str, params: dict) -> str:
+    """Correlate a voltage file for a single corr node."""
     output_path = f'{voltage_path}.corr'
 
     if not os.path.exists('{0}.corr'.format(voltage_path)):
