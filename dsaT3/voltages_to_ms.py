@@ -19,7 +19,7 @@ from dsacalib.ms_io import uvh5_to_ms
 from dsaT3.utils import rsync_file, load_params
 from dsaT3.generate_uvh5 import generate_uvh5
 
-NPROC = 8
+NPROC = 2
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 T3PARAMS = load_params(PARAMFILE)
 CORR_LIST = list(T3PARAMS['ch0'].keys())
@@ -128,8 +128,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, nfint: int,
     uvh5_to_ms(hdf5files, '{T3PARAMS["msdir"]}/{candname}')
 
     # Remove hdf5 files from disk
-    for hdf5file in hdf5files:
-        os.remove(hdf5file)
+    # for hdf5file in hdf5files:
+    #     os.remove(hdf5file)
 
 def rsync_handler(rsync_queue: "Manager().Queue", corr_queue: "Manager().Queue",
                   rsync: bool) -> None:
@@ -309,7 +309,7 @@ def parse_commandline_arguments() -> "argparse.Namespace":
         '--stopoffset',
         type=int,
         nargs='?',
-        default=2484,
+        default=3252, #2484,
         help='number of bins from end of correlation to write to ms'
     )
     args = parser.parse_args()
