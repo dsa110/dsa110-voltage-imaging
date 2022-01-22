@@ -100,7 +100,10 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
             # Opening it each time seems like too much overhead
             with open(corrfile, 'rb') as cfhandler:
                 if start_offset is not None:
-                    cfhandler.seek(start_offset*32*size_params['itemspframe'])
+                    # Seek in bytes, and we have 4 bytes per item (float32)
+                    cfhandler.seek(start_offset*4*size_params['itemspframe'])
+                    print(start_offset)
+                    print(size_params)
 
                 for i in tqdm.tqdm(range(size_params['nblocks'])):
                     # Define the time that we are reading in for this block
