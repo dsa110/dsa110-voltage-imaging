@@ -19,7 +19,7 @@ LOGGER = dsl.DsaSyslogger()
 LOGGER.subsystem("software")
 LOGGER.app("dsacalib")
 
-N_CORR_NODES = 16
+N_CORR_NODES = 1 # Number in the template file
 
 def update_template(template_filepath: str, uvh5_filepaths: list):
     """Updates a template file with real data and metadata.
@@ -191,7 +191,7 @@ class TemplateMSVis():
         # should be a single spectral window.
         with table(f'{template_filepath}/SPECTRAL_WINDOW') as tb:
             freq = np.array(tb.CHAN_FREQ[:]).squeeze(0)
-            assert np.median(np.diff(freq)) > 0
+            freq_ascending = np.median(np.diff(freq)) > 0
 
         with table(template_filepath) as tb:
             vis = np.array(tb.DATA[:])
@@ -202,6 +202,7 @@ class TemplateMSVis():
         self.vis = np.zeros(vis_shape, vis_dtype)
         self.flags = np.ones(vis.shape, bool)
         self.freq = freq
+        self.freq_ascending = freq_ascending
         self.nfreq_corr = vis.shape[1]//n_corr_nodes
 
     def update_vis_and_flags(self, uvh5file: UVData):
@@ -211,8 +212,9 @@ class TemplateMSVis():
         uvh5_vis = uvh5file.data_array.reshape(uvh5file.Ntimes, uvh5file.Nbls, uvh5file.Nfreqs, uvh5file.Npols)
         uvh5_flags = uvh5file.flag_array.reshape(uvh5file.Ntimes, uvh5file.Nbls, uvh5file.Nfreqs, uvh5file.Npols)
         uvh5_freq = uvh5file.freq_array.squeeze(0)
+        uvh5_freq_ascending = np.median(np.diff(uvh5_freq)) > 0
 
-        if np.median(np.diff(uvh5_freq)) < 0:
+        if uvh5_freq_ascending != self.freq_ascending:
             uvh5_vis = uvh5_vis[:, :, ::-1, :]
             uvh5_freq = uvh5_freq[::-1]
 
