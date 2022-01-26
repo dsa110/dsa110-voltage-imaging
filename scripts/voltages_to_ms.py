@@ -255,9 +255,8 @@ def get_input_file_locations(candname: str, datestring: str) -> tuple:
 
 def get_output_file_locations(candname: str) -> tuple:
     """Determine where to put intermediate output files (correlated and uvh5)"""
-    name_roots = [f'{T3PARAMS["corrdir"]}/{corr}_{candname}' for corr in CORR_LIST]
-    outnames = [f'{name_root}_data.out' for name_root in name_roots]
-    hdf5names = [f'{name_root}.hdf5' for name_root in name_roots]
+    outnames = [f'{T3PARAMS["corrdir"]}/{corr}_{candname}_data.out' for corr in CORR_LIST]
+    hdf5names = [f'{T3PARAMS["corrdir"]}/{candname}_{corr}.hdf5' for corr in CORR_LIST]
     return outnames, hdf5names
 
 def get_tstart_from_json(headername: str) -> "astropy.time.Time":
