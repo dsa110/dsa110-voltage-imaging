@@ -17,8 +17,9 @@ PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 T3PARAMS = load_params(PARAMFILE)
 NPOL_OUT = 2
 
-def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
-                  start_offset=None, end_offset=None) -> str:
+def generate_uvh5(name: str, pt_dec: "astropy.Quantity", tstart: "astropy.time.Time",
+                  ntint: int, nfint: int, filelist: dict, params: dict=T3PARAMS,
+                  start_offset: int=None, end_offset: int=None, npol_out: int=NPOL_OUT) -> str:
     """Generates a measurement set from the T3 correlations.
 
     Parameters
@@ -66,7 +67,7 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
     tobs = vis_params['tobs'][start_offset:end_offset]
 
     # Calculate parameters on the block size and frame rate for writing to the uvh5 file
-    size_params = parse_size_parameters(vis_params, start_offset, end_offset, nfint)
+    size_params = parse_size_parameters(vis_params, start_offset, end_offset, nfint, npol_out)
     nfreq_out = size_params['output_chunk_shape'][2]
 
     # Generate a uvh5 file for each corr node
@@ -87,7 +88,7 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
             initialize_uvh5_file(
                 fhdf5,
                 nfreq_out,
-                NPOL_OUT,
+                npol_out,
                 pt_dec.to_value(u.rad),
                 vis_params['antenna_order'],
                 fobs_corr,
@@ -131,7 +132,7 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
                             cfhandler,
                             size_params['itemspblock'],
                             size_params['input_chunk_shape'])
-                        if vis_params['npol'] == 4 and NPOL_OUT == 2:
+                        if vis_params['npol'] == 4 and npol_out == 2:
                             vis_chunk = get_XX_YY(vis_chunk)
 
                         # Apply outrigger and geometric delays
@@ -163,7 +164,7 @@ def generate_uvh5(name, pt_dec, tstart, ntint, nfint, filelist, params=T3PARAMS,
     return outname
 
 def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int,
-                          nfint: int) -> dict:
+                          nfint: int, npol_out: int) -> dict:
     """Define size of frames and blocks in the uvh5 file.
 
     Parameters
@@ -190,7 +191,7 @@ def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int,
         vis_params['nbls'],
         vis_params['nchan_corr'],
         vis_params['npol'])
-    output_chunk_shape = (framespblock, vis_params['nbls'], vis_params['nchan_corr']//nfint, NPOL_OUT)
+    output_chunk_shape = (framespblock, vis_params['nbls'], vis_params['nchan_corr']//nfint, npol_out)
     size_params = {
         'itemspframe': itemspframe,
         'framespblock': framespblock,
