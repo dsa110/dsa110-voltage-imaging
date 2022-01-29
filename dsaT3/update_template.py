@@ -23,7 +23,7 @@ N_CORR_NODES = 1 # Number in the template file
 
 def update_template(template_filepath: str, uvh5_filepaths: list):
     """Updates a template file with real data and metadata.
-    
+
     Eventually, we will want to do this directly from the correlated data, but for
     now we use the uvh5 file as an intermediate step.  This is because it already
     properly handles outrigger delays and frequency integration, as well as reading
@@ -34,13 +34,13 @@ def update_template(template_filepath: str, uvh5_filepaths: list):
 
 def update_weights(sigma_spectrum: np.ndarray, template_filepath: str) -> None:
     """Updates a template file with weights based on pulse profile and DM.
-    
+
     `sigma_spectrum` should have dimensions (Nblt, Nchans, Npols).
     """
     weight_spectrum = np.power(sigma_spectrum, -2)
     weight = weight_spectrum.sum(axis=1)
     sigma = np.power(weight, -0.5)
-    
+
     with table(template_filepath) as tb:
         has_sigma_spectrum = 'SIGMA_SPECTRUM' in tb.colnames()
     if not has_sigma_spectrum:
@@ -51,7 +51,7 @@ def update_weights(sigma_spectrum: np.ndarray, template_filepath: str) -> None:
         tb.putcol('WEIGHT_SPECTRUM', weight_spectrum)
         tb.putcol('WEIGHT', weight)
         tb.putcol('SIGMA', sigma)
-        
+
 def add_sigma_spectrum_column(template_filepath: str) -> None:
     """Add SIGMA_SPECTRUM as a column to the measurement set at `template_filepath`"""
     sigma_spectrum_desc = get_sigma_spectrum_desc()
@@ -72,7 +72,8 @@ def get_sigma_spectrum_desc() -> dict:
         'keywords': {}}}
     return sigma_spectrum_desc
 
-def update_visibilities(template_filepath: str, uvh5_filepaths: list, n_corr_nodes: int=N_CORR_NODES):
+def update_visibilities(template_filepath: str, uvh5_filepaths: list,
+                        n_corr_nodes: int=N_CORR_NODES):
     """Updates a template file with real data.
 
     There are a few ways that we can do this:
@@ -242,8 +243,10 @@ class TemplateMSVis():
         """Update the vis and flag arrays using an open uvh5 file."""
         assert uvh5file.Nfreqs == self.nfreq_corr
 
-        uvh5_vis = uvh5file.data_array.reshape(uvh5file.Ntimes, uvh5file.Nbls, uvh5file.Nfreqs, uvh5file.Npols)
-        uvh5_flags = uvh5file.flag_array.reshape(uvh5file.Ntimes, uvh5file.Nbls, uvh5file.Nfreqs, uvh5file.Npols)
+        uvh5_vis = uvh5file.data_array.reshape(
+            uvh5file.Ntimes, uvh5file.Nbls, uvh5file.Nfreqs, uvh5file.Npols)
+        uvh5_flags = uvh5file.flag_array.reshape(
+            uvh5file.Ntimes, uvh5file.Nbls, uvh5file.Nfreqs, uvh5file.Npols)
         uvh5_freq = uvh5file.freq_array.squeeze(0)
         uvh5_freq_ascending = np.median(np.diff(uvh5_freq)) > 0
 
@@ -257,8 +260,10 @@ class TemplateMSVis():
         # currently used to convert from uvh5 to ms.
         start_chan = np.argmin(np.abs(self.freq-uvh5_freq[0]))
         end_chan = start_chan + self.nfreq_corr
-        self.vis[:, start_chan:end_chan, :] = np.conjugate(uvh5_vis.reshape(uvh5file.Nblts, uvh5file.Nfreqs, uvh5file.Npols))
-        self.flags[:, start_chan:end_chan, :] = uvh5_flags.reshape(uvh5file.Nblts, uvh5file.Nfreqs, uvh5file.Npols)
+        self.vis[:, start_chan:end_chan, :] = np.conjugate(uvh5_vis.reshape(
+            uvh5file.Nblts, uvh5file.Nfreqs, uvh5file.Npols))
+        self.flags[:, start_chan:end_chan, :] = uvh5_flags.reshape(
+            uvh5file.Nblts, uvh5file.Nfreqs, uvh5file.Npols)
 
     def write_vis_and_flags(self):
         """Write updated visibility and flags to the template ms."""
@@ -274,4 +279,3 @@ def convert_jd_to_mjds(time_jd):
 def convert_jd_to_mjd(time_jd):
     """Convert times between jd (Julian Date) and mjd (Modified Julian Date)."""
     return Time(time_jd, format='jd').mjd
-
