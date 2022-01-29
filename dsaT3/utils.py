@@ -4,6 +4,7 @@ import subprocess
 import json, os, glob
 import pipes
 import yaml
+from astropy.time import Time
 from dsautils import cnf
 
 def delete_remote(host, path):
@@ -56,6 +57,13 @@ def load_params(paramfile):
     T3params['antennas'] = list(corrconf['antenna_order'].values())[:63]
     T3params['outrigger_delays'] = mfsconf['outrigger_delays']
     return T3params
+
+def get_tstart_from_json(headername: str) -> "astropy.time.Time":
+    """Extract the start time from the header file."""
+    with open(headername) as jsonf:
+        metadata = json.load(jsonf)
+    tstart = Time(metadata['mjds'], format='mjd')
+    return tstart
 
 def rsync_file(infile, outfile):
     """Rsyncs a file from the correlator machines.

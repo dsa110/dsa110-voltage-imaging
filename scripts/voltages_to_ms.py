@@ -16,7 +16,7 @@ from astropy.time import Time
 import astropy.units as u
 from dsautils.coordinates import get_declination, get_elevation
 from dsacalib.ms_io import uvh5_to_ms
-from dsaT3.utils import rsync_file, load_params
+from dsaT3.utils import rsync_file, load_params, get_tstart_from_json
 from dsaT3.generate_uvh5 import generate_uvh5
 
 NPROC = 2
@@ -258,13 +258,6 @@ def get_output_file_locations(candname: str) -> tuple:
     outnames = [f'{T3PARAMS["corrdir"]}/{corr}_{candname}_data.out' for corr in CORR_LIST]
     hdf5names = [f'{T3PARAMS["corrdir"]}/{candname}_{corr}.hdf5' for corr in CORR_LIST]
     return outnames, hdf5names
-
-def get_tstart_from_json(headername: str) -> "astropy.time.Time":
-    """Extract the start time from the header file."""
-    with open(headername) as jsonf:
-        metadata = json.load(jsonf)
-    tstart = Time(metadata['mjds'], format='mjd')
-    return tstart
 
 def parse_commandline_arguments() -> "argparse.Namespace":
     """Parse commandline arguments."""
