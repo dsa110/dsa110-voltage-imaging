@@ -2,6 +2,7 @@
 """
 import subprocess
 import json, os, glob
+import re
 import pipes
 import yaml
 from astropy.time import Time
