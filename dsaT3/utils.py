@@ -79,7 +79,7 @@ def find_beamformer_weights(candtime: "astropy.time.Time", bfdir: str = '/data/d
                            for calib_path in glob.iglob(f'{bfdir}/beamformer_weights_{isot_string}.yaml')],
                           reverse=True)
     for avail_calib in avail_calibs:
-        if avail_calib < isot_pattern.match(candtime.isot):
+        if avail_calib < isot_pattern.findall(candtime.isot)[0]:
             return avail_calib
 
 def rsync_file(infile, outfile):
