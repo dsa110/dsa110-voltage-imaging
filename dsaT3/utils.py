@@ -47,6 +47,7 @@ def check_voltages(candname):
     writefile(dd, filename)
 
 def load_params(paramfile):
+    """Load parameters for T3 correlation from a yaml file."""
     with open(paramfile) as yamlf:
         T3params = yaml.load(yamlf, Loader=yaml.FullLoader)['T3corr']
     conf = cnf.Conf()
@@ -64,6 +65,22 @@ def get_tstart_from_json(headername: str) -> "astropy.time.Time":
         metadata = json.load(jsonf)
     tstart = Time(metadata['mjds'], format='mjd')
     return tstart
+
+def find_beamformer_weights(candtime: "astropy.time.Time", bfdir: str = '/data/dsa110/T3/calibs/') -> str:
+    """Find the beamformer weights that were in use at a time `candtime`.
+    
+    In `/data/dsa110/T3/calibs/`, the times in the beamformer weight names are the times when they were
+    uploaded to the correlator nodes. Therefore, we want the most recent calibration files that were
+    created before `candtime`.
+    """
+    isot_string = '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]'
+    isot_pattern = re.compile(isot_string)
+    avail_calibs = sorted([isot_pattern.findall(calib_path)[0]
+                           for calib_path in glob.iglob(f'{bfdir}/beamformer_weights_{isot_string}.yaml')],
+                          reverse=True)
+    for avail_calib in avail_calibs:
+        if avail_calib < isot_pattern.match(candtime.isot):
+            return avail_calib
 
 def rsync_file(infile, outfile):
     """Rsyncs a file from the correlator machines.
