@@ -150,10 +150,29 @@ def read_bfweights(bfweights, bfdir):
             data = np.fromfile(f, '<f4')
         temp = data[64:].reshape(64, 48, 2, 2)
         gains[:, corridx, :, :] = temp[..., 0]+1.0j*temp[..., 1]
-    gains = gains.reshape(
-        (len(antenna_order), len(corr_order)*48, 2)
-    )
+
     return antenna_order, gains
+
+def calibrate_T3ms_percorrnode(msnames: dict, bfweights: str, bfdir: str):
+    """Calibrates a measurement set using the beamformer weights.
+
+    Calibrated data is written into the CORRECTED_DATA column.
+
+    Parameters
+    ----------
+    msname : str
+        The name of the measurement set.
+    bfweights : str
+        The label of the file containing the weights. Will open
+        <bfdir>/beamformer_weights_<bfweights>.yaml
+    bfdir : str
+        The directory in which the beamformer weights are stored.
+    """
+    antenna_order, gains = read_bfweights(bfweights, bfdir)
+    
+    for corrnode, msname in msnames.items():
+        corridx = CORR_ORDER.index(int(corrnode.strip('corr')))
+        apply_calibration(msname, gains[:, corridx, :, :], antenna_order)
 
 def calibrate_T3ms(msname, bfweights, bfdir, dedisp_mask=None):
     """Calibrates a measurement set using the beamformer weights.
@@ -169,46 +188,42 @@ def calibrate_T3ms(msname, bfweights, bfdir, dedisp_mask=None):
         <bfdir>/beamformer_weights_<bfweights>.yaml
     bfdir : str
         The directory in which the beamformer weights are stored.
-    dedisp_mask : str
-        The path to a dedispersion mask to be applied.
     """
     antenna_order, gains = read_bfweights(bfweights, bfdir)
-    gains = gains[:, ::-1, :]
+    gains = gains.reshape(gains.shape[0], -1, gains.shape[-1])
+    apply_calibration(msname, gains, antenna_order)
 
+def apply_calibration(msname: str, gains: np.ndarray, antenna_order: list):
+    """Apply `gains` to the visbilities in `msname`."""
     data, _, fobs, flags, ant1, ant2, _, _, orig_shape = extract_vis_from_ms(
-        msname,
-        data='data'
-    )
-    print(data.shape)
-    data = data.reshape(
-        data.shape[0],
-        data.shape[1],
-        data.shape[2],
-        gains.shape[1],
-        -1,
-        data.shape[-1]
-    )
-    assert np.all(np.diff(fobs) > 0)
+        msname, data='data')
     assert orig_shape == ['time', 'baseline', 'spw']
+
+    data = data.reshape(
+        data.shape[0], data.shape[1], data.shape[2],
+        gains.shape[1], -1, data.shape[-1])
+
+    if np.mean(np.diff(fobs)) > 0:
+        assert np.all(np.diff(fobs) > 0)
+        gains = gains[:, ::-1, :]
+    else:
+        assert np.all(np.diff(fobs) < 0)
+
     for i in range(data.shape[0]):
         a1 = ant1[i]+1
         a2 = ant2[i]+1
         try:
             bl_gains = (
-                np.conjugate(
-                    gains[antenna_order.index(a2), ...]
-                )*gains[antenna_order.index(a1), ...]
-            )
+                np.conjugate(gains[antenna_order.index(a2), ...])*
+                gains[antenna_order.index(a1), ...])
             bl_gains = np.exp(1.j*np.angle(bl_gains))
             data[i, ...] *= bl_gains[:, np.newaxis, :]
         except ValueError:
             flags[i, ...] = 1
             print('no calibration solutions for baseline {0}-{1}'.format(a1, a2))
+
     data = data.swapaxes(0, 1).reshape((-1, len(fobs), data.shape[-1]))
     flags = flags.swapaxes(0, 1).reshape((-1, len(fobs), flags.shape[-1]))
-    # dedisp_flags = np.load(dedisp_mask)
-    # check size
-    # data[data!=data] = np.nanmean(data) this should be okay now
     with table('{0}.ms'.format(msname), readonly=False) as tb:
         tb.putcol('CORRECTED_DATA', data)
         tb.putcol('FLAG', flags)
