@@ -114,10 +114,12 @@ def generate_uvh5(name: str, pt_dec: "astropy.Quantity", tstart: "astropy.time.T
                     if template:
                         # If we're making a template we can't don't need to read the data
                         # Just fill with zeros instead
-                        data = np.zeros(size_params['output_chunk_shape'], dtype=np.complex64)
+                        vis_chunk = np.zeros(size_params['output_chunk_shape'], dtype=np.complex64)
 
                     else:
                         # Read a block of data from the correlated file.
+                        # TODO: with the new correlator, we will actually want to use the
+                        # output_chunk_shape
                         vis_chunk = get_visibility_chunk(
                             cfhandler,
                             size_params['itemspblock'],
@@ -128,6 +130,8 @@ def generate_uvh5(name: str, pt_dec: "astropy.Quantity", tstart: "astropy.time.T
                         # Apply outrigger and geometric delays
                         # We won't perform any phasing here - we just write the data
                         # directly to the uvh5 file.
+                        # TODO: With the new correlator we won't have to do these next
+                        # 12 lines
                         vis_model = get_visibility_model(total_delay_block, fobs_corr_full)
                         vis_chunk /= vis_model
                         # Squeeze the data in frequency - this has to be done *after* applying
@@ -280,8 +284,6 @@ def calculate_uvw_and_geodelay(
         interpolate_uvws: bool=True) -> tuple:
     """Calculate the uvw coordinates in the correlated file.
     
-    TODO: Interpolate between first and last timebins
-
     Parameters
     ----------
     vis_params : dict
@@ -300,7 +302,12 @@ def calculate_uvw_and_geodelay(
     ant_bw : np.ndarray(float)
         The geometric path length, w, to each antenna, dimensions (time, antenna).
     """
-    ntimes = len(tobs)
+    if tobs.ndim == 0:
+        interpolate_uvws = False
+        ntimes = 1
+    else:
+        ntimes = len(tobs)
+
     if interpolate_uvws:
         buvw = calc_uvw_interpolate(vis_params['blen'], tobs, 'HADEC', 0.*u.rad, pt_dec)
     else:
