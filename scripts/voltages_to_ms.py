@@ -87,12 +87,11 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, nfint: int,
         target=rsync_handler,
         args=(rsync_queue, corr_queue, rsync),
         daemon=True)]
-    for i in range(NPROC):
         # Corr processes correlate the data
-        processes += [Process(
-            target=corr_handler,
-            args=(deltat_ms, deltaf_MHz, corr_queue, uvh5_queue, ncorrfiles, ncorrfiles_lock),
-            daemon=True)]
+    processes += [Process(
+        target=corr_handler,
+        args=(ntint, corr_queue, uvh5_queue, ncorrfiles, ncorrfiles_lock),
+        daemon=True)]
     for i in range(NPROC):
         # Uvh5 processes convert the correlated data to uvh5 format
         processes += [Process(
@@ -107,12 +106,11 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, nfint: int,
 
     # Wait for rsync process to finish
     processes[0].join()
-    for i in range(NPROC):
-        corr_queue.put('END')
+    corr_queue.put('END')
 
     # Wait for corr process to finish
-    for proc in processes[1:NPROC+1]:
-        proc.join()
+    processes[1].join()
+    proc.join()
     print('All corr processes done')
     for i in range(NPROC):
         uvh5_queue.put('END')
@@ -124,8 +122,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, nfint: int,
     print('All uvh5 processes done')
 
     # Convert uvh5 files to a measurement set
-    hdf5files = sorted(glob.glob('{T3PARAMS["corrdir"]}/{candname}_corr??.hdf5'))
-    uvh5_to_ms(hdf5files, '{T3PARAMS["msdir"]}/{candname}')
+    # hdf5files = sorted(glob.glob('{T3PARAMS["corrdir"]}/{candname}_corr??.hdf5'))
+    # uvh5_to_ms(hdf5files, '{T3PARAMS["msdir"]}/{candname}')
 
     # Remove hdf5 files from disk
     # for hdf5file in hdf5files:
@@ -152,7 +150,7 @@ def rsync_handler(rsync_queue: "Manager().Queue", corr_queue: "Manager().Queue",
                     os.symlink(srcfile, vfile)
             corr_queue.put(vfile)
 
-def corr_handler(deltat_ms: float, deltaf_MHz: float, corr_queue: "Manager().Queue",
+def corr_handler(ntint: int, corr_queue: "Manager().Queue",
                  uvh5_queue: "Manager().Queue", ncorrfiles: "Manager().Value",
                  ncorrfiles_lock: "Manager().Lock") -> None:
     """Correlates data using T3 cpu correlator."""
@@ -172,10 +170,13 @@ def corr_handler(deltat_ms: float, deltaf_MHz: float, corr_queue: "Manager().Que
             with ncorrfiles_lock:
                 ncorrfiles.value += 1
             if not os.path.exists('{0}.corr'.format(vfile)):
+                # command = (
+                #     '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/dsacorr '
+                #     f'-d {vfile} -o {vfile}.corr -t {deltat_ms} -f {deltaf_MHz} '
+                #     f'-a {len(T3PARAMS["antennas"])}')
                 command = (
-                    '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/dsacorr '
-                    f'-d {vfile} -o {vfile}.corr -t {deltat_ms} -f {deltaf_MHz} '
-                    f'-a {len(T3PARAMS["antennas"])}')
+                    '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit '
+                    f'-i {vfile} -o {vfile}.corr -t {ntint}')
                 print(command)
                 process = subprocess.Popen(
                     command,
@@ -301,7 +302,7 @@ def parse_commandline_arguments() -> "argparse.Namespace":
         '--stopoffset',
         type=int,
         nargs='?',
-        default=3252, #2484,
+        default=4788, #3252, #2484,
         help='number of bins from end of correlation to write to ms'
     )
     args = parser.parse_args()
