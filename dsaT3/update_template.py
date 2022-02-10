@@ -19,9 +19,7 @@ LOGGER = dsl.DsaSyslogger()
 LOGGER.subsystem("software")
 LOGGER.app("dsacalib")
 
-N_CORR_NODES = 1 # Number in the template file
-
-def update_template(template_filepath: str, uvh5_filepaths: list):
+def update_template(template_filepath: str, uvh5_filepaths: list, template_ncorrnodes: int=16):
     """Updates a template file with real data and metadata.
 
     Eventually, we will want to do this directly from the correlated data, but for
@@ -29,11 +27,11 @@ def update_template(template_filepath: str, uvh5_filepaths: list):
     properly handles outrigger delays and frequency integration, as well as reading
     data by block.
     """
-    update_visibilities(template_filepath, uvh5_filepaths)
+    update_visibilities(template_filepath, uvh5_filepaths, template_ncorrnodes)
     update_metadata(template_filepath, uvh5_filepaths[0])
 
 def update_visibilities(template_filepath: str, uvh5_filepaths: list,
-                        n_corr_nodes: int=N_CORR_NODES):
+                        n_corr_nodes: int):
     """Updates a template file with real data.
 
     There are a few ways that we can do this:
@@ -179,12 +177,17 @@ class TemplateMSMD():
 class TemplateMSVis():
     """Access and update the visibilities and flags for a template ms."""
 
-    def __init__(self, template_filepath: str, n_corr_nodes: int=N_CORR_NODES):
+    def __init__(self, template_filepath: str, n_corr_nodes: int):
         """Open the template ms and instantiate the vis and flag arrays."""
         # The measurement set frequencies should be in ascending order, and there
         # should be a single spectral window.
+        with table(f'{template_filepath}') as tb:
+            spw = np.array(tb.DATA_DESC_ID[:])
+        assert np.all(spw==spw[0])
+        spw = spw[0]
+
         with table(f'{template_filepath}/SPECTRAL_WINDOW') as tb:
-            freq = np.array(tb.CHAN_FREQ[:]).squeeze(0)
+            freq = np.array(tb.CHAN_FREQ[:])[spw, :]
             freq_ascending = np.median(np.diff(freq)) > 0
 
         with table(template_filepath) as tb:
