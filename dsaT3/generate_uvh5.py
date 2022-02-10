@@ -9,7 +9,7 @@ import astropy.units as u
 import astropy.constants as c
 from antpos.utils import get_itrf
 from dsamfs.io import initialize_uvh5_file, update_uvh5_file
-from dsacalib.fringestopping import calc_uvw
+from dsacalib.fringestopping import calc_uvw, calc_uvw_interpolate
 import dsacalib.constants as ct
 from dsaT3.utils import load_params
 
@@ -65,11 +65,14 @@ def generate_uvh5(name: str, pt_dec: "astropy.Quantity", tstart: "astropy.time.T
 
     # Determine which times to extract
     tobs = vis_params['tobs'][start_offset:end_offset]
-
+    buvw, ant_bw = calculate_uvw_and_geodelay(vis_params, tobs, pt_dec)
+    total_delay = get_total_delay(
+        vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'], vis_params['antenna_order'])
+    
     # Calculate parameters on the block size and frame rate for writing to the uvh5 file
     size_params = parse_size_parameters(vis_params, start_offset, end_offset, nfint, npol_out)
     nfreq_out = size_params['output_chunk_shape'][2]
-
+    
     # Generate a uvh5 file for each corr node
     for corr, corrfile in filelist.items():
 
@@ -94,11 +97,6 @@ def generate_uvh5(name: str, pt_dec: "astropy.Quantity", tstart: "astropy.time.T
                 fobs_corr,
                 vis_params['antenna_cable_delays'])
 
-            # TODO: rearrange so that corrfile does not need to be opened when creating a template
-            # Open the correlated file and seek the desired start position
-            # If we're making a template we can't open this file
-            # How can we open it with "with" if we want the alternative to do nothing?
-            # Opening it each time seems like too much overhead
             with open(corrfile, 'rb') as cfhandler:
                 if start_offset is not None:
                     # Seek in bytes, and we have 4 bytes per item (float32)
@@ -108,18 +106,10 @@ def generate_uvh5(name: str, pt_dec: "astropy.Quantity", tstart: "astropy.time.T
 
                 for i in tqdm.tqdm(range(size_params['nblocks'])):
                     # Define the time that we are reading in for this block
-                    tobs_block = tobs[
-                        i*size_params['framespblock']:(i+1)*size_params['framespblock']]
-
-                    buvw, ant_bw = calculate_uvw_and_geodelay(
-                        vis_params,
-                        size_params,
-                        tobs_block, pt_dec)
-                    total_delay = get_total_delay(
-                        vis_params['baseline_cable_delays'],
-                        ant_bw,
-                        vis_params['bname'],
-                        vis_params['antenna_order'])
+                    block_tidxs = slice(i*size_params['framespblock'], (i+1)*size_params['framespblock'])
+                    tobs_block = tobs[block_tidxs]
+                    buvw_block = buvw[block_tidxs, ...]
+                    total_delay_block = total_delay[block_tidxs]
 
                     if template:
                         # If we're making a template we can't don't need to read the data
@@ -138,7 +128,7 @@ def generate_uvh5(name: str, pt_dec: "astropy.Quantity", tstart: "astropy.time.T
                         # Apply outrigger and geometric delays
                         # We won't perform any phasing here - we just write the data
                         # directly to the uvh5 file.
-                        vis_model = get_visibility_model(total_delay, fobs_corr_full)
+                        vis_model = get_visibility_model(total_delay_block, fobs_corr_full)
                         vis_chunk /= vis_model
                         # Squeeze the data in frequency - this has to be done *after* applying
                         # the delays
@@ -158,7 +148,7 @@ def generate_uvh5(name: str, pt_dec: "astropy.Quantity", tstart: "astropy.time.T
                         tobs_block.jd,
                         vis_params['tsamp'],
                         vis_params['bname'],
-                        buvw,
+                        buvw_block,
                         np.ones(vis_chunk.shape, np.float32))
 
     return outname
@@ -182,7 +172,7 @@ def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int,
         Parameters that describe the size of data chunks to be read in and written out.
     """
     itemspframe = vis_params['nbls']*vis_params['nchan_corr']*vis_params['npol']*2
-    framespblock = 2
+    framespblock = 8
     itemspblock = itemspframe*framespblock
     assert (end_offset - start_offset)%framespblock == 0
     nblocks = (end_offset-start_offset)//framespblock
@@ -285,9 +275,12 @@ def get_cable_delays(outrigger_delays: dict, bname: list) -> np.ndarray:
                     outrigger_delays.get(int(ant2), 0)
     return delays
 
-def calculate_uvw_and_geodelay(vis_params: dict, size_params: dict,
-                               tobs: np.ndarray, pt_dec: float) -> tuple:
+def calculate_uvw_and_geodelay(
+        vis_params: dict, tobs: np.ndarray, pt_dec: float,
+        interpolate_uvws: bool=True) -> tuple:
     """Calculate the uvw coordinates in the correlated file.
+    
+    TODO: Interpolate between first and last timebins
 
     Parameters
     ----------
@@ -307,15 +300,16 @@ def calculate_uvw_and_geodelay(vis_params: dict, size_params: dict,
     ant_bw : np.ndarray(float)
         The geometric path length, w, to each antenna, dimensions (time, antenna).
     """
-    bu, bv, bw = calc_uvw(
-        vis_params['blen'],
-        tobs.mjd,
-        'HADEC',
-        np.zeros(size_params['framespblock'])*u.rad,
-        np.ones(size_params['framespblock'])*pt_dec
-    )
-    buvw = np.array([bu, bv, bw]).T
-    ant_bw = bw[vis_params['refidxs']].T
+    ntimes = len(tobs)
+    if interpolate_uvws:
+        buvw = calc_uvw_interpolate(vis_params['blen'], tobs, 'HADEC', 0.*u.rad, pt_dec)
+    else:
+        bu, bv, bw = calc_uvw(vis_params['blen'], tobs.mjd, 'HADEC',
+            np.tile(0.*u.rad, ntimes), np.tile(pt_dec, ntimes))
+        buvw = np.array([bu, bv, bw]).T
+
+    ant_bw = buvw[:, vis_params['refidxs'], -1]
+
     return buvw, ant_bw
 
 def get_total_delay(baseline_cable_delay: np.ndarray, ant_bw: np.ndarray, bname: list,
