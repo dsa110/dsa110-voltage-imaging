@@ -19,7 +19,62 @@ LOGGER = dsl.DsaSyslogger()
 LOGGER.subsystem("software")
 LOGGER.app("dsacalib")
 
-def update_template(template_filepath: str, uvh5_filepaths: list, template_ncorrnodes: int=16):
+def create_template(template_path, outms_path):
+    return
+    # We also need to include some of the things from the main table here, e.g. WEIGHT_SPECTRUM, etc.
+    not_to_copy = [
+        'TIME', 'TIME_CENTROID', 'FEED TIME', 'FIELD TIME', 'OBSERVATION TIME_RANGE', 'SOURCE TIME',
+        'UVW', 'FIELD DELAY_DIR', 'FIELD PHASE_DIR', 'FIELD REFERENCE_DIR', 'SOURCE DIRECTION',
+        'DATA', 'FLAG', 'SPECTRAL_WINDOW MEAS_FREQ_REF','SPECTRAL_WINDOW CHAN_FREQ',
+        'SPECTRAL_WINDOW REF_FREQUENCY', 'SPECTRAL_WINDOW CHAN_WIDTH',
+        'SPECTRAL_WINDOW EFFECTIVE_BW', 'SPECTRAL_WINDOW RESOLUTION',
+        'SPECTRAL_WINDOW FLAG_ROW', 'SPECTRAL_WINDOW FREQ_GROUP',
+        'SPECTRAL_WINDOW FREQ_GROUP_NAME', 'SPECTRAL_WINDOW IF_CONV_CHAIN',
+        'SPECTRAL_WINDOW NAME', 'SPECTRAL_WINDOW NET_SIDEBAND',
+        'SPECTRAL_WINDOW NUM_CHAN', 'SPECTRAL_WINDOW TOTAL_BANDWIDTH', 'WEIGHT', 'SIGMA',
+        'ANTENNA1', 'ANTENNA2', asdfda]
+    with table(template) as tb:
+        default_desc = tb.getdesc()
+
+    items_to_change = {}
+    subtable_descs = {}
+    for key, value in default_desc['_keywords_'].items():
+        if isinstance(value, str) and value[:6] == 'Table:':
+            table_path = value.split(' ')[-1]
+            table_name = table_path.split('/')[-1]
+            with table(table_path) as tb:
+                table_desc = tb.getdesc()
+
+            output_path = f'{outname}/{table_name}'
+            items_to_change[key] = f'Table: {output_path}'
+            subtable_descs[output_path] = table_desc
+
+    for key, value in items_to_change.items():
+        default_desc['_keywords_'][key] = value
+    del items_to_change
+
+    subtable_descs[outname] = default_desc
+    #with open('./default_desc.pkl', 'wb') as f:
+    #    pickle.dump(subtable_descs, f)
+
+    with table(outname, tabledesc=default_desc, readonly=False) as tb:
+        pass
+
+    for table_path, table_desc in subtable_descs.items():
+        with table(table_path, tabledesc=table_desc, readonly=False) as tb:
+            pass
+    for key in subtable_descs.keys():
+        keyname = re.findall('.ms/[_A-Z]*', key)
+        if len(keyname) == 0:
+            keyname = ''
+        else:
+            keyname = keyname[0][4:]
+        for key2 in subtable_descs[key].keys():
+            total_name = f'{keyname} {key2}'.strip()
+            if key2[0] != '_' and total_name not in not_to_copy:
+                print(f'Update {keyname} {key2}')
+
+def update_template(template_filepath: str, uvh5_filepaths: list, template_ncorrnodes: int=16, freq_array_Hz=None):
     """Updates a template file with real data and metadata.
 
     Eventually, we will want to do this directly from the correlated data, but for
@@ -27,8 +82,9 @@ def update_template(template_filepath: str, uvh5_filepaths: list, template_ncorr
     properly handles outrigger delays and frequency integration, as well as reading
     data by block.
     """
+    update_metadata(template_filepath, uvh5_filepaths[0], freq_array_Hz)
     update_visibilities(template_filepath, uvh5_filepaths, template_ncorrnodes)
-    update_metadata(template_filepath, uvh5_filepaths[0])
+
 
 def update_visibilities(template_filepath: str, uvh5_filepaths: list,
                         n_corr_nodes: int):
@@ -57,7 +113,7 @@ def update_visibilities(template_filepath: str, uvh5_filepaths: list,
 
     template_ms.write_vis_and_flags()
 
-def update_metadata(template_path: str, uvh5_filepath: str) -> None:
+def update_metadata(template_path: str, uvh5_filepath: str, freq_array_Hz: np.ndarray) -> None:
     """Updates a template file with real metadata.
 
     Questions: Should we update the first two entries of the history table?
@@ -67,7 +123,9 @@ def update_metadata(template_path: str, uvh5_filepath: str) -> None:
 
     UV = UVData()
     UV.read(uvh5_filepath, file_type='uvh5')
-
+    
+    template_ms.update_frequency(freq_array_Hz)
+    
     template_ms.update_obstime(convert_jd_to_mjds(UV.time_array))
 
     uvw_m = calculate_uvw(UV)
@@ -163,7 +221,7 @@ class TemplateMSMD():
             tb.putcol('UVW', uvw_m)
 
     def update_direction(self, ra_rad: float, dec_rad: float):
-        """Update the directions int he template ms with the true direction."""
+        """Update the directions in the template ms with the true direction."""
         direction = np.array([ra_rad, dec_rad], dtype=self.float_type)
 
         with table(f'{self.filepath}/FIELD', readonly=False) as tb:
@@ -173,6 +231,30 @@ class TemplateMSMD():
 
         with table(f'{self.filepath}/SOURCE', readonly=False) as tb:
             tb.putcol('DIRECTION', np.tile(direction, (1, 1)))
+        
+    def update_frequency(self, freq_array_Hz: np.ndarray):
+        """Update the frequncy information in the template ms."""
+        if freq_array_Hz.ndim == 1:
+            freq_array_Hz = freq_array_Hz[np.newaxis, :]
+        nspw, nchan = freq_array_Hz.shape
+
+        chan_width = np.mean(np.diff(freq_array_Hz), axis=1)
+
+        with table(f'{self.filepath}/SPECTRAL_WINDOW', readonly=False) as tb:
+            tb.putcol('MEAS_FREQ_REF', np.tile(5, nspw))
+            tb.putcol('CHAN_FREQ', freq_array_Hz)
+            tb.putcol('REF_FREQUENCY', freq_array_Hz[:, 0])
+            tb.putcol('CHAN_WIDTH', np.tile(np.abs(chan_width), nfreq))
+            tb.putcol('EFFECTIVE_BW', np.tile(np.abs(chan_width), nfreq))
+            tb.putcol('RESOLUTION', np.tile(np.abs(chan_width), nfreq))
+            tb.putcol('FLAG_ROW', np.tile(False, nspw))
+            tb.putcol('FREQ_GROUP', np.tile(0, nspw))
+            tb.putcol('FREQ_GROUP_NAME', np.tile('none', nspw))
+            tb.putcol('IF_CONV_CHAIN', np.tile(0, nspw))
+            tb.putcol('NAME', np.tile('none', nspw))
+            tb.putcol('NET_SIDEBAND', np.tile(1 if chan_width > 0 else 0, nspw))
+            tb.putcol('NUM_CHAN', np.tile(nchan, nspw))
+            tb.putcol('TOTAL_BANDWIDTH', chan_width*nchan)
 
 class TemplateMSVis():
     """Access and update the visibilities and flags for a template ms."""
@@ -185,10 +267,12 @@ class TemplateMSVis():
             spw = np.array(tb.DATA_DESC_ID[:])
         assert np.all(spw==spw[0])
         spw = spw[0]
-
+        
+        # TODO: Update to change the visibility table shape
         with table(f'{template_filepath}/SPECTRAL_WINDOW') as tb:
             freq = np.array(tb.CHAN_FREQ[:])[spw, :]
-            freq_ascending = np.median(np.diff(freq)) > 0
+            channel_width = np.median(np.diff(freq))
+            freq_ascending = channel_width > 0
 
         with table(template_filepath) as tb:
             vis = np.array(tb.DATA[:])
@@ -199,6 +283,7 @@ class TemplateMSVis():
         self.vis = np.zeros(vis_shape, vis_dtype)
         self.flags = np.ones(vis.shape, bool)
         self.freq = freq
+        self.channel_width = channel_width
         self.freq_ascending = freq_ascending
         self.nfreq_corr = vis.shape[1]//n_corr_nodes
 
