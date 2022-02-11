@@ -1,6 +1,27 @@
 import numpy as np
 from casacore.tables import table
 
+DISPERSION_CONSTANT = 10/2.41
+
+def dedisperse(vis, freq_GHz, sample_time_ms, dispersion_measure):
+    """Visibilities must be (time, baseline, freq, pol)"""
+    nfreqs = len(freq_GHz)
+    assert vis.shape[2] == nfreqs
+
+    dispersion_delay_ms = get_dispersion_delay_ms(freq_GHz, dispersion_measure)
+    dispersion_delay_tbin = np.round(dispersion_delay_ms/sample_time_ms).astype(np.int)
+
+    for i in range(nfreqs):
+        vis[:, :, i, :] = np.roll(vis[:, :, i, :], -1*dispersion_delay_tbin[i], axis=0)
+
+    return vis
+
+def get_dispersion_delay_ms(freq_GHz, dispersion_measure) -> np.ndarray:
+    """Calculate the dispersion delay per channel in ms."""
+    reference_freq = np.max(freq_GHz)
+    dispersion_delay_ms = DISPERSION_CONSTANT*dispersion_measure*(1/freq_GHz**2-1/reference_freq**2)
+    return dispersion_delay_ms
+
 def update_weights(sigma_spectrum: np.ndarray, template_filepath: str) -> None:
     """Updates a template file with weights based on pulse profile and DM.
 
