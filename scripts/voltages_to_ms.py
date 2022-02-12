@@ -1,7 +1,7 @@
 """
 Convert voltage files to measurement sets.
 """
-import json
+from types import MappingProxyType
 import re
 import os
 import glob
@@ -12,20 +12,22 @@ import queue
 import argparse
 import time
 from pkg_resources import resource_filename
-from astropy.time import Time
 import astropy.units as u
 from dsautils.coordinates import get_declination, get_elevation
-from dsacalib.ms_io import uvh5_to_ms
-from dsaT3.utils import rsync_file, load_params, get_tstart_from_json
-from dsaT3.generate_uvh5 import generate_uvh5
+from dsaT3.uvh5_to_ms import uvh5_to_ms
+from dsaT3.utils import rsync_file, load_params, get_tstart_from_json, get_DM_from_json
+from dsaT3.generate_uvh5 import generate_uvh5, parse_visibility_parameters
 
 NPROC = 2
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 T3PARAMS = load_params(PARAMFILE)
 CORR_LIST = list(T3PARAMS['ch0'].keys())
+GEN_DELAY_SCRIPT = ('/home/ubuntu/anaconda3/envs/dana/bin/python '
+                    '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/gen_delays.py')
+BURST_START_S = 1907*262.144e-6
 
-def voltages_to_ms(candname: str, datestring: str, ntint: int, nfint: int,
-                   start_offset: int, end_offset: int) -> None:
+def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
+                   full_pol: bool=False) -> None:
     """
     Correlate voltage files and convert to a measurement set.
 
@@ -52,15 +54,23 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, nfint: int,
     """
 
     start_offset, end_offset = set_default_if_unset(start_offset, end_offset)
-
     filenames, headername, rsync = get_input_file_locations(candname, datestring)
-
     outnames, hdf5names = get_output_file_locations(candname)
 
     # Get additional parameters that describe the correlation
     tstart = get_tstart_from_json(headername)
-    deltat_ms = ntint*T3PARAMS['deltat_s']*1e3
-    deltaf_MHz = T3PARAMS['deltaf_MHz']
+    dispersion_measure = get_DM_from_json(headername)
+    if dispersion_measure < 1:
+        dispersion_measure = None
+
+    vis_params = parse_visibility_parameters(T3PARAMS, tstart, ntint)
+    vis_params['tref'] = tstart+BURST_START_S
+    vis_params['npol'] = 4 if full_pol else 2
+    vis_params['nfint'] = 1 if full_pol else 8
+    vis_params['ntint'] = ntint
+    corr_ch0_MHz = {key: 1e3*vis_params['fobs'][value] for key, value in vis_params['corr_ch0'].items()}
+    corr_ch0_MHz_safe = MappingProxyType(corr_ch0_MHz) # Thread-safe mapping
+    vis_params_safe = MappingProxyType(vis_params)
 
     # Initialize the process manager, locks, values, and queues
     manager = Manager()
@@ -72,7 +82,24 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, nfint: int,
     corr_queue = manager.Queue()
     uvh5_queue = manager.Queue()
 
-    # Populate rsync queue (the entry queue in our pipelin)
+    # Generate the table needed by the correlator
+    process = Process(
+        target=get_declination_handler,
+        args=(declination, declination_lock, tstart),
+        daemon=True)
+    process.start()
+    process.join()
+
+    # TODO: Add this to generate_uvh5 and import from there
+    # TODO: Generate this when correlating
+    command = f'{GEN_DELAY_SCRIPT} {headername} {declination.value}'
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        shell=True)
+    proc_stdout = str(process.communicate()[0].strip())
+    print(proc_stdout)
+
+    # Populate rsync queue (the entry queue in our pipeline)
     # We only need to do this if the corresponding hdf5 file hasn't
     # been created already.
     for i, filename in enumerate(filenames):
@@ -87,17 +114,18 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, nfint: int,
         target=rsync_handler,
         args=(rsync_queue, corr_queue, rsync),
         daemon=True)]
-        # Corr processes correlate the data
+    # Corr processes correlate the data
     processes += [Process(
         target=corr_handler,
-        args=(ntint, corr_queue, uvh5_queue, ncorrfiles, ncorrfiles_lock),
+        args=(ntint, corr_ch0_MHz_safe, full_pol, corr_queue,
+              uvh5_queue, ncorrfiles, ncorrfiles_lock),
         daemon=True)]
     for i in range(NPROC):
-        # Uvh5 processes convert the correlated data to uvh5 format
+        # UVH5 processes convert the correlated data to uvh5 format
         processes += [Process(
             target=uvh5_handler,
-            args=(candname, declination, declination_lock, tstart, ntint, nfint, start_offset,
-                  end_offset, uvh5_queue, ncorrfiles, ncorrfiles_lock),
+            args=(candname, declination, vis_params_safe,
+                  start_offset, end_offset, uvh5_queue, ncorrfiles, ncorrfiles_lock),
             daemon=True)]
 
     # Start all processes in the pipeline
@@ -106,24 +134,25 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, nfint: int,
 
     # Wait for rsync process to finish
     processes[0].join()
+    print('rsync process done')
     corr_queue.put('END')
 
     # Wait for corr process to finish
     processes[1].join()
-    proc.join()
-    print('All corr processes done')
+    print('corr process done')
     for i in range(NPROC):
         uvh5_queue.put('END')
 
     # Wait for uvh5 processes to finish
-    for proc in processes[1+NPROC:]:
+    for proc in processes[2:]:
         proc.join()
         print('A uvh5 process joined.')
     print('All uvh5 processes done')
 
     # Convert uvh5 files to a measurement set
-    # hdf5files = sorted(glob.glob('{T3PARAMS["corrdir"]}/{candname}_corr??.hdf5'))
-    # uvh5_to_ms(hdf5files, '{T3PARAMS["msdir"]}/{candname}')
+    # This can also be done with a queue
+    hdf5files = sorted(glob.glob(f'{T3PARAMS["corrdir"]}/{candname}_corr??.hdf5'))
+    uvh5_to_ms(candname, tstart, dispersion_measure, hdf5files, f'{T3PARAMS["msdir"]}/{candname}')
 
     # Remove hdf5 files from disk
     # for hdf5file in hdf5files:
@@ -150,7 +179,7 @@ def rsync_handler(rsync_queue: "Manager().Queue", corr_queue: "Manager().Queue",
                     os.symlink(srcfile, vfile)
             corr_queue.put(vfile)
 
-def corr_handler(ntint: int, corr_queue: "Manager().Queue",
+def corr_handler(ntint: int, corr_ch0: dict, full_pol: bool, corr_queue: "Manager().Queue",
                  uvh5_queue: "Manager().Queue", ncorrfiles: "Manager().Value",
                  ncorrfiles_lock: "Manager().Lock") -> None:
     """Correlates data using T3 cpu correlator."""
@@ -169,14 +198,13 @@ def corr_handler(ntint: int, corr_queue: "Manager().Queue",
                 continue
             with ncorrfiles_lock:
                 ncorrfiles.value += 1
+            corr = re.findall('corr\d\d', vfile)[0]
             if not os.path.exists('{0}.corr'.format(vfile)):
-                # command = (
-                #     '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/dsacorr '
-                #     f'-d {vfile} -o {vfile}.corr -t {deltat_ms} -f {deltaf_MHz} '
-                #     f'-a {len(T3PARAMS["antennas"])}')
+                first_channel_MHz = corr_ch0[corr]
                 command = (
-                    '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit '
-                    f'-i {vfile} -o {vfile}.corr -t {ntint}')
+                    '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit_dev '
+                    f'-i {vfile} -o {vfile}.corr -t {ntint} -c {first_channel_MHz} '
+                    f'-d delays.dat {"" if full_pol else "-a"}')
                 print(command)
                 process = subprocess.Popen(
                     command,
@@ -185,47 +213,46 @@ def corr_handler(ntint: int, corr_queue: "Manager().Queue",
                     shell=True)
                 proc_stdout = str(process.communicate()[0].strip())
                 print(proc_stdout)
-            corr_files = dict({})
-            corr = re.findall('corr\d\d', vfile)[0]
-            corr_files[corr] = '{0}.corr'.format(vfile)
-            uvh5_queue.put(corr_files)
 
-def uvh5_handler(candname: str, declination: "Manager().Queue", declination_lock: "Manager().Queue",
-                 tstart: "astropy.time.Time", ntint: int, nfint: int, start_offset: int,
-                 end_offset: int, uvh5_queue: "Manager().Queue", ncorrfiles: "Manager().Value",
-                 ncorrfiles_lock: "Manager().Lock") -> None:
-    """Convert correlated data to uvh5."""
-    proc = multiprocessing.current_process()
-    uvh5_done = False
+            corrfile = '{0}.corr'.format(vfile)
+            uvh5_queue.put(corrfile)
+
+def get_declination_handler(declination: "Manager().Value", declination_lock: "Manager().Lock",
+                    tstart: "astropy.time.Time"):
     with declination_lock:
         if declination.value is None:
             declination.value = get_declination(
                 get_elevation(tstart)
             ).to_value(u.deg)
 
+def uvh5_handler(candname: str, declination: "Manager().Value",
+                 vis_params: dict, start_offset: int,
+                 end_offset: int, uvh5_queue: "Manager().Queue", ncorrfiles: "Manager().Value",
+                 ncorrfiles_lock: "Manager().Lock") -> None:
+    """Convert correlated data to uvh5."""
+    proc = multiprocessing.current_process()
+    uvh5_done = False
+
     while not uvh5_done:
         try:
-            corr_files = uvh5_queue.get()
+            corrfile = uvh5_queue.get()
         except queue.Empty:
             time.sleep(10)
         else:
-            if corr_files == 'END':
+            if corrfile == 'END':
                 print('proc {0} is setting uvh5_done'.format(proc.pid))
                 uvh5_done = True
                 continue
             uvh5name = generate_uvh5(
                 '{0}/{1}'.format(T3PARAMS['corrdir'], candname),
                 declination.value*u.deg,
-                tstart,
-                ntint=ntint,
-                nfint=nfint,
-                filelist=corr_files,
+                corrfile=corrfile,
+                vis_params=vis_params,
                 start_offset=start_offset,
                 end_offset=end_offset
             )
             print(uvh5name)
-            for value in corr_files.values():
-                os.remove(value)
+            os.remove(corrfile)
             with ncorrfiles_lock:
                 ncorrfiles.value -= 1
     print('{0} exiting'.format(proc.pid))
@@ -285,13 +312,6 @@ def parse_commandline_arguments() -> "argparse.Namespace":
         help='number of native time bins to integrate during correlation'
     )
     parser.add_argument(
-        '--nfint',
-        type=int,
-        nargs='?',
-        default=8,
-        help='number of native freq bins to integrate during correlation'
-    )
-    parser.add_argument(
         '--startoffset',
         type=int,
         nargs='?',
@@ -310,5 +330,5 @@ def parse_commandline_arguments() -> "argparse.Namespace":
 
 if __name__ == '__main__':
     ARGS = parse_commandline_arguments()
-    voltages_to_ms(ARGS.candname, ARGS.datestring, ntint=ARGS.ntint, nfint=ARGS.nfint,
+    voltages_to_ms(ARGS.candname, ARGS.datestring, ntint=ARGS.ntint,
                    start_offset=ARGS.startoffset, end_offset=ARGS.stopoffset)

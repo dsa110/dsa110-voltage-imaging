@@ -194,14 +194,18 @@ def calibrate_T3ms(msname, bfweights, bfdir: str='/data/dsa110/T3/calibs/'):
     apply_calibration(msname, gains, antenna_order)
 
 def apply_calibration(msname: str, gains: np.ndarray, antenna_order: list):
-    """Apply `gains` to the visbilities in `msname`."""
-    data, _, fobs, flags, ant1, ant2, _, _, orig_shape = extract_vis_from_ms(
+    """Apply `gains` to the visibilities in `msname`."""
+    data, _, fobs, flags, ant1, ant2, _, spw, orig_shape = extract_vis_from_ms(
         msname, data='data')
-    assert orig_shape == ['time', 'baseline', 'spw']
+    assert orig_shape in [['time', 'baseline', 'spw'], ['spw', 'time', 'baseline']]
+    nspw = len(spw)
+    nfreq = len(fobs)
+    npol = data.shape[-1]
+    nbl = data.shape[0]
+    nt = data.shape[1]
 
-    data = data.reshape(
-        data.shape[0], data.shape[1], data.shape[2],
-        gains.shape[1], -1, data.shape[-1])
+    data = data.reshape(nbl, nt, nfreq, npol)
+    flags = flags.reshape(nbl, nt, nfreq, npol)
 
     if np.mean(np.diff(fobs)) > 0:
         assert np.all(np.diff(fobs) > 0)
@@ -209,7 +213,7 @@ def apply_calibration(msname: str, gains: np.ndarray, antenna_order: list):
     else:
         assert np.all(np.diff(fobs) < 0)
 
-    for i in range(data.shape[0]):
+    for i in range(nbl):
         a1 = ant1[i]+1
         a2 = ant2[i]+1
         try:
@@ -217,13 +221,18 @@ def apply_calibration(msname: str, gains: np.ndarray, antenna_order: list):
                 np.conjugate(gains[antenna_order.index(a2), ...])*
                 gains[antenna_order.index(a1), ...])
             bl_gains = np.exp(1.j*np.angle(bl_gains))
-            data[i, ...] *= bl_gains[:, np.newaxis, :]
+            data[i, ...] *= bl_gains[np.newaxis, :, :]
         except ValueError:
             flags[i, ...] = 1
             print('no calibration solutions for baseline {0}-{1}'.format(a1, a2))
 
-    data = data.swapaxes(0, 1).reshape((-1, len(fobs), data.shape[-1]))
-    flags = flags.swapaxes(0, 1).reshape((-1, len(fobs), flags.shape[-1]))
+    data = data.swapaxes(0, 1).reshape((-1, nfreq, npol))
+    flags = flags.swapaxes(0, 1).reshape((-1, nfreq, npol))
+    
+    if orig_shape == ['spw', 'time', 'baseline']:
+        data = data.reshape((nbl*nt, nspw, nfreq//nspw, npol)).swapaxes(0, 1).reshape(nbl*nt*nspw, nfreq//nspw, npol)
+        flags = flags.reshape((nbl*nt, nspw, nfreq//nspw, npol)).swapaxes(0, 1).reshape(nbl*nt*nspw, nfreq//nspw, npol)
+    
     with table('{0}.ms'.format(msname), readonly=False) as tb:
         tb.putcol('CORRECTED_DATA', data)
         tb.putcol('FLAG', flags)

@@ -67,6 +67,12 @@ def get_tstart_from_json(headername: str) -> "astropy.time.Time":
     tstart = Time(metadata['mjds'], format='mjd')
     return tstart
 
+def get_DM_from_json(headername: str) -> float:
+    """Extract the dispersion measure from the header file."""
+    with open(headername) as jsonf:
+        metadata = json.load(jsonf)
+    return metadata['dm']
+
 def find_beamformer_weights(candtime: "astropy.time.Time", bfdir: str = '/data/dsa110/T3/calibs/') -> str:
     """Find the beamformer weights that were in use at a time `candtime`.
     

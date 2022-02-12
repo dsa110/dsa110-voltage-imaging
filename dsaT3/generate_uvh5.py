@@ -1,25 +1,20 @@
 """Create uvh5 files from T3 visibilities.
 """
 import os
+import re
+import sys
 import tqdm
 import h5py
 import numpy as np
-from pkg_resources import resource_filename
 import astropy.units as u
 import astropy.constants as c
 from antpos.utils import get_itrf
 from dsamfs.io import initialize_uvh5_file, update_uvh5_file
 from dsacalib.fringestopping import calc_uvw, calc_uvw_interpolate
 import dsacalib.constants as ct
-from dsaT3.utils import load_params
 
-PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
-T3PARAMS = load_params(PARAMFILE)
-NPOL_OUT = 2
-
-def generate_uvh5(name: str, pt_dec: "astropy.Quantity", tstart: "astropy.time.Time",
-                  ntint: int, nfint: int, filelist: dict, params: dict=T3PARAMS,
-                  start_offset: int=None, end_offset: int=None, npol_out: int=NPOL_OUT) -> str:
+def generate_uvh5(name: str, pt_dec: "astropy.Quantity", corrfile: str, vis_params: dict,
+                  start_offset: int=None, end_offset: int=None) -> str:
     """Generates a measurement set from the T3 correlations.
 
     Parameters
@@ -56,109 +51,69 @@ def generate_uvh5(name: str, pt_dec: "astropy.Quantity", tstart: "astropy.time.T
     if start_offset is None:
         start_offset = 0
     if end_offset is None:
-        end_offset = params['nsubint']//ntint
-
-    template = name[-8:] == 'template'
-
-    # Parse further parameters
-    vis_params = parse_visibility_parameters(params, tstart, ntint)
+        end_offset = len(vis_params['tobs'])
 
     # Determine which times to extract
     tobs = vis_params['tobs'][start_offset:end_offset]
-    buvw, ant_bw = calculate_uvw_and_geodelay(vis_params, tobs, pt_dec)
-    total_delay = get_total_delay(
-        vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'], vis_params['antenna_order'])
-    
+    buvw, _ant_bw = calculate_uvw_and_geodelay(vis_params, vis_params['tref'], pt_dec)
+    buvw = np.tile(buvw, (len(tobs), 1, 1))
+
     # Calculate parameters on the block size and frame rate for writing to the uvh5 file
-    size_params = parse_size_parameters(vis_params, start_offset, end_offset, nfint, npol_out)
-    nfreq_out = size_params['output_chunk_shape'][2]
-    
+    size_params = parse_size_parameters(vis_params, start_offset, end_offset)
+    nfreq_out = size_params['chunk_shape'][2]
+
     # Generate a uvh5 file for each corr node
-    for corr, corrfile in filelist.items():
+    corr = re.findall('corr[0-9][0-9]', corrfile)[0]
 
-        outname = '{1}_{0}.hdf5'.format(corr, name)
-        # Dont overwrite if the uvh5 file already exists
-        if os.path.exists(outname):
-            break
+    outname = '{1}_{0}.hdf5'.format(corr, name)
+    # Dont overwrite if the uvh5 file already exists
+    if os.path.exists(outname):
+        return outname
 
-        fobs_corr_full = get_corr_frequencies(vis_params, corr)
-        # We only need the frequencies in the uvh5 file, so integrate
-        # if we plan to integrate the data in frequency
-        fobs_corr = np.median(fobs_corr_full.reshape(-1, nfint), axis=-1)
+    fobs_corr_full = get_corr_frequencies(vis_params, corr)
+    # We only need the frequencies in the uvh5 file, so integrate
+    # if we plan to integrate the data in frequency
+    fobs_corr = np.median(fobs_corr_full.reshape(-1, vis_params['nfint']), axis=-1)
 
-        with h5py.File(outname, 'w') as fhdf5:
-            # Initialize the uvh5 file
-            initialize_uvh5_file(
-                fhdf5,
-                nfreq_out,
-                npol_out,
-                pt_dec.to_value(u.rad),
-                vis_params['antenna_order'],
-                fobs_corr,
-                vis_params['antenna_cable_delays'])
+    with h5py.File(outname, 'w') as fhdf5:
+        # Initialize the uvh5 file
+        initialize_uvh5_file(
+            fhdf5,
+            nfreq_out,
+            vis_params['npol'],
+            pt_dec.to_value(u.rad),
+            vis_params['antenna_order'],
+            fobs_corr,
+            vis_params['antenna_cable_delays'])
+        with open(corrfile, 'rb') as cfhandler:
+            if start_offset is not None:
+                # Seek in bytes, and we have 4 bytes per item (float32)
+                cfhandler.seek(start_offset*4*size_params['itemspframe'])
 
-            with open(corrfile, 'rb') as cfhandler:
-                if start_offset is not None:
-                    # Seek in bytes, and we have 4 bytes per item (float32)
-                    cfhandler.seek(start_offset*4*size_params['itemspframe'])
-                    print(start_offset)
-                    print(size_params)
+            for i in tqdm.tqdm(range(size_params['nblocks'])):
+                # Define the time that we are reading in for this block
+                block_tidxs = slice(i*size_params['framespblock'], (i+1)*size_params['framespblock'])
+                tobs_block = tobs[block_tidxs]
+                buvw_block = buvw[block_tidxs, ...]
 
-                for i in tqdm.tqdm(range(size_params['nblocks'])):
-                    # Define the time that we are reading in for this block
-                    block_tidxs = slice(i*size_params['framespblock'], (i+1)*size_params['framespblock'])
-                    tobs_block = tobs[block_tidxs]
-                    buvw_block = buvw[block_tidxs, ...]
-                    total_delay_block = total_delay[block_tidxs]
+                vis_chunk = get_visibility_chunk(
+                    cfhandler,
+                    size_params['itemspblock'],
+                    size_params['chunk_shape'])
 
-                    if template:
-                        # If we're making a template we can't don't need to read the data
-                        # Just fill with zeros instead
-                        vis_chunk = np.zeros(size_params['output_chunk_shape'], dtype=np.complex64)
-
-                    else:
-                        # Read a block of data from the correlated file.
-                        # TODO: with the new correlator, we will actually want to use the
-                        # output_chunk_shape
-                        vis_chunk = get_visibility_chunk(
-                            cfhandler,
-                            size_params['itemspblock'],
-                            size_params['input_chunk_shape'])
-                        if vis_params['npol'] == 4 and npol_out == 2:
-                            vis_chunk = get_XX_YY(vis_chunk)
-
-                        # Apply outrigger and geometric delays
-                        # We won't perform any phasing here - we just write the data
-                        # directly to the uvh5 file.
-                        # TODO: With the new correlator we won't have to do these next
-                        # 12 lines
-                        vis_model = get_visibility_model(total_delay_block, fobs_corr_full)
-                        vis_chunk /= vis_model
-                        # Squeeze the data in frequency - this has to be done *after* applying
-                        # the delays
-                        if nfint > 1:
-                            vis_chunk = vis_chunk.reshape(
-                                size_params['output_chunk_shape'][0],
-                                size_params['output_chunk_shape'][1],
-                                size_params['output_chunk_shape'][2],
-                                nfint,
-                                size_params['output_chunk_shape'][3]
-                            ).mean(axis=3)
-
-                    # Write the data to the uvh5 file
-                    update_uvh5_file(
-                        fhdf5,
-                        vis_chunk.astype(np.complex64),
-                        tobs_block.jd,
-                        vis_params['tsamp'],
-                        vis_params['bname'],
-                        buvw_block,
-                        np.ones(vis_chunk.shape, np.float32))
+                # Write the data to the uvh5 file
+                update_uvh5_file(
+                    fhdf5,
+                    vis_chunk.astype(np.complex64),
+                    tobs_block.jd,
+                    vis_params['tsamp'],
+                    vis_params['bname'],
+                    buvw_block,
+                    np.ones(vis_chunk.shape, np.float32))
 
     return outname
 
-def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int,
-                          nfint: int, npol_out: int) -> dict:
+def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int) -> dict:
     """Define size of frames and blocks in the uvh5 file.
 
     Parameters
@@ -175,24 +130,25 @@ def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int,
     size_params : dict
         Parameters that describe the size of data chunks to be read in and written out.
     """
-    itemspframe = vis_params['nbls']*vis_params['nchan_corr']*vis_params['npol']*2
+    nchan = vis_params['nchan_corr']//vis_params['nfint']
+    itemspframe = vis_params['nbls']*nchan*vis_params['npol']*2
     framespblock = 8
     itemspblock = itemspframe*framespblock
-    assert (end_offset - start_offset)%framespblock == 0
+    if (end_offset - start_offset)%framespblock != 0:
+        framespblock = end_offset-start_offset
+        print(f'Changing framespblock to {framespblock}')
     nblocks = (end_offset-start_offset)//framespblock
-    input_chunk_shape = (
+    chunk_shape = (
         framespblock,
         vis_params['nbls'],
-        vis_params['nchan_corr'],
+        nchan,
         vis_params['npol'])
-    output_chunk_shape = (framespblock, vis_params['nbls'], vis_params['nchan_corr']//nfint, npol_out)
     size_params = {
         'itemspframe': itemspframe,
         'framespblock': framespblock,
         'itemspblock': itemspblock,
         'nblocks': nblocks,
-        'input_chunk_shape': input_chunk_shape,
-        'output_chunk_shape': output_chunk_shape}
+        'chunk_shape': chunk_shape}
     return size_params
 
 def parse_visibility_parameters(params: dict, tstart: 'astropy.time.Time', ntint: int) -> dict:
@@ -252,6 +208,7 @@ def parse_visibility_parameters(params: dict, tstart: 'astropy.time.Time', ntint
         'nchan_corr': params['nchan_corr'],
         # Polarization
         'npol': params['npol']}
+        # TODO: Polarization is set twice
 
     return vis_params
 
@@ -283,7 +240,7 @@ def calculate_uvw_and_geodelay(
         vis_params: dict, tobs: np.ndarray, pt_dec: float,
         interpolate_uvws: bool=True) -> tuple:
     """Calculate the uvw coordinates in the correlated file.
-    
+
     Parameters
     ----------
     vis_params : dict
@@ -311,7 +268,8 @@ def calculate_uvw_and_geodelay(
     if interpolate_uvws:
         buvw = calc_uvw_interpolate(vis_params['blen'], tobs, 'HADEC', 0.*u.rad, pt_dec)
     else:
-        bu, bv, bw = calc_uvw(vis_params['blen'], tobs.mjd, 'HADEC',
+        bu, bv, bw = calc_uvw(
+            vis_params['blen'], tobs.mjd, 'HADEC',
             np.tile(0.*u.rad, ntimes), np.tile(pt_dec, ntimes))
         buvw = np.array([bu, bv, bw]).T
 
