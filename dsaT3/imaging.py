@@ -87,10 +87,10 @@ def plot_image(imname, verbose=False, outname=None, show=True, expected_point=No
     ax.axhline(0, color='white', alpha=0.5)
     ax.set_xlabel('l (arcmin)')
     ax.set_ylabel('m (arcmin)')
-    plttitle = '{0} {1:.2f} {2:.2f}'.format(
+    plttitle = '{0} {1} {2}'.format(
         imname,
-        brightest_point[0],
-        brightest_point[1]
+        brightest_point[0].to_string('hourangle'),
+        brightest_point[1].to_string('deg')
     )
     if expected_point is not None:
         plttitle += ', offset by {0:.2f} {1:.2f}'.format(
