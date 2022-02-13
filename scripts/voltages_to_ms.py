@@ -155,8 +155,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     uvh5_to_ms(candname, tstart, dispersion_measure, hdf5files, f'{T3PARAMS["msdir"]}/{candname}')
 
     # Remove hdf5 files from disk
-    # for hdf5file in hdf5files:
-    #     os.remove(hdf5file)
+    for hdf5file in hdf5files:
+        os.remove(hdf5file)
 
 def rsync_handler(rsync_queue: "Manager().Queue", corr_queue: "Manager().Queue",
                   rsync: bool) -> None:
