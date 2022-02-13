@@ -18,7 +18,6 @@ from dsaT3.utils import rsync_file, load_params, get_tstart_from_json, get_DM_fr
 from dsaT3.generate_uvh5 import generate_uvh5, parse_visibility_parameters
 from dsaT3.voltages_to_ms import *
 
-
 def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
                    full_pol: bool=False) -> None:
     """
@@ -51,8 +50,6 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     cand = initialize_candidate(candname, datestring, system_setup)
     corrparams = initialize_correlater(fullpol, ntint, cand, system_setup)
     uvh5params = initialize_uvh5(cand, system_setup)
-
-
 
     # Initialize the process manager, locks, values, and queues
     manager = Manager()
