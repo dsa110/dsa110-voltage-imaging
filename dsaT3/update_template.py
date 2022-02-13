@@ -19,119 +19,78 @@ LOGGER = dsl.DsaSyslogger()
 LOGGER.subsystem("software")
 LOGGER.app("dsacalib")
 
-def create_template(template_path, outms_path):
-    return
-    # We also need to include some of the things from the main table here, e.g. WEIGHT_SPECTRUM, etc.
-    not_to_copy = [
-        'TIME', 'TIME_CENTROID', 'FEED TIME', 'FIELD TIME', 'OBSERVATION TIME_RANGE', 'SOURCE TIME',
-        'UVW', 'FIELD DELAY_DIR', 'FIELD PHASE_DIR', 'FIELD REFERENCE_DIR', 'SOURCE DIRECTION',
-        'DATA', 'FLAG', 'SPECTRAL_WINDOW MEAS_FREQ_REF','SPECTRAL_WINDOW CHAN_FREQ',
-        'SPECTRAL_WINDOW REF_FREQUENCY', 'SPECTRAL_WINDOW CHAN_WIDTH',
-        'SPECTRAL_WINDOW EFFECTIVE_BW', 'SPECTRAL_WINDOW RESOLUTION',
-        'SPECTRAL_WINDOW FLAG_ROW', 'SPECTRAL_WINDOW FREQ_GROUP',
-        'SPECTRAL_WINDOW FREQ_GROUP_NAME', 'SPECTRAL_WINDOW IF_CONV_CHAIN',
-        'SPECTRAL_WINDOW NAME', 'SPECTRAL_WINDOW NET_SIDEBAND',
-        'SPECTRAL_WINDOW NUM_CHAN', 'SPECTRAL_WINDOW TOTAL_BANDWIDTH', 'WEIGHT', 'SIGMA',
-        'ANTENNA1', 'ANTENNA2', asdfda]
-    with table(template) as tb:
-        default_desc = tb.getdesc()
+# def create_template(template_path, outms_path):
+#     return
+#     # We also need to include some of the things from the main table here, e.g. WEIGHT_SPECTRUM, etc.
+#     not_to_copy = [
+#         'TIME', 'TIME_CENTROID', 'FEED TIME', 'FIELD TIME', 'OBSERVATION TIME_RANGE', 'SOURCE TIME',
+#         'UVW', 'FIELD DELAY_DIR', 'FIELD PHASE_DIR', 'FIELD REFERENCE_DIR', 'SOURCE DIRECTION',
+#         'DATA', 'FLAG', 'SPECTRAL_WINDOW MEAS_FREQ_REF','SPECTRAL_WINDOW CHAN_FREQ',
+#         'SPECTRAL_WINDOW REF_FREQUENCY', 'SPECTRAL_WINDOW CHAN_WIDTH',
+#         'SPECTRAL_WINDOW EFFECTIVE_BW', 'SPECTRAL_WINDOW RESOLUTION',
+#         'SPECTRAL_WINDOW FLAG_ROW', 'SPECTRAL_WINDOW FREQ_GROUP',
+#         'SPECTRAL_WINDOW FREQ_GROUP_NAME', 'SPECTRAL_WINDOW IF_CONV_CHAIN',
+#         'SPECTRAL_WINDOW NAME', 'SPECTRAL_WINDOW NET_SIDEBAND',
+#         'SPECTRAL_WINDOW NUM_CHAN', 'SPECTRAL_WINDOW TOTAL_BANDWIDTH', 'WEIGHT', 'SIGMA',
+#         'ANTENNA1', 'ANTENNA2', asdfda]
+#     with table(template) as tb:
+#         default_desc = tb.getdesc()
 
-    items_to_change = {}
-    subtable_descs = {}
-    for key, value in default_desc['_keywords_'].items():
-        if isinstance(value, str) and value[:6] == 'Table:':
-            table_path = value.split(' ')[-1]
-            table_name = table_path.split('/')[-1]
-            with table(table_path) as tb:
-                table_desc = tb.getdesc()
+#     items_to_change = {}
+#     subtable_descs = {}
+#     for key, value in default_desc['_keywords_'].items():
+#         if isinstance(value, str) and value[:6] == 'Table:':
+#             table_path = value.split(' ')[-1]
+#             table_name = table_path.split('/')[-1]
+#             with table(table_path) as tb:
+#                 table_desc = tb.getdesc()
 
-            output_path = f'{outname}/{table_name}'
-            items_to_change[key] = f'Table: {output_path}'
-            subtable_descs[output_path] = table_desc
+#             output_path = f'{outname}/{table_name}'
+#             items_to_change[key] = f'Table: {output_path}'
+#             subtable_descs[output_path] = table_desc
 
-    for key, value in items_to_change.items():
-        default_desc['_keywords_'][key] = value
-    del items_to_change
+#     for key, value in items_to_change.items():
+#         default_desc['_keywords_'][key] = value
+#     del items_to_change
 
-    subtable_descs[outname] = default_desc
-    #with open('./default_desc.pkl', 'wb') as f:
-    #    pickle.dump(subtable_descs, f)
+#     subtable_descs[outname] = default_desc
+#     #with open('./default_desc.pkl', 'wb') as f:
+#     #    pickle.dump(subtable_descs, f)
 
-    with table(outname, tabledesc=default_desc, readonly=False) as tb:
-        pass
+#     with table(outname, tabledesc=default_desc, readonly=False) as tb:
+#         pass
 
-    for table_path, table_desc in subtable_descs.items():
-        with table(table_path, tabledesc=table_desc, readonly=False) as tb:
-            pass
-    for key in subtable_descs.keys():
-        keyname = re.findall('.ms/[_A-Z]*', key)
-        if len(keyname) == 0:
-            keyname = ''
-        else:
-            keyname = keyname[0][4:]
-        for key2 in subtable_descs[key].keys():
-            total_name = f'{keyname} {key2}'.strip()
-            if key2[0] != '_' and total_name not in not_to_copy:
-                print(f'Update {keyname} {key2}')
+#     for table_path, table_desc in subtable_descs.items():
+#         with table(table_path, tabledesc=table_desc, readonly=False) as tb:
+#             pass
+#     for key in subtable_descs.keys():
+#         keyname = re.findall('.ms/[_A-Z]*', key)
+#         if len(keyname) == 0:
+#             keyname = ''
+#         else:
+#             keyname = keyname[0][4:]
+#         for key2 in subtable_descs[key].keys():
+#             total_name = f'{keyname} {key2}'.strip()
+#             if key2[0] != '_' and total_name not in not_to_copy:
+#                 print(f'Update {keyname} {key2}')
 
-def update_template(template_filepath: str, uvh5_filepaths: list, template_ncorrnodes: int=16, freq_array_Hz=None):
-    """Updates a template file with real data and metadata.
-
-    Eventually, we will want to do this directly from the correlated data, but for
-    now we use the uvh5 file as an intermediate step.  This is because it already
-    properly handles outrigger delays and frequency integration, as well as reading
-    data by block.
-    """
-    update_metadata(template_filepath, uvh5_filepaths[0], freq_array_Hz)
-    update_visibilities(template_filepath, uvh5_filepaths, template_ncorrnodes)
-
-
-def update_visibilities(template_filepath: str, uvh5_filepaths: list,
-                        n_corr_nodes: int):
-    """Updates a template file with real data.
-
-    There are a few ways that we can do this:
-    The most error-proof way is to use casacore, but it may not be able to
-    handle large data sizes.
-
-    We can stream bytes directly from the input file to the ms, as long as
-    we get the offsets correct.
-
-    A faster way may be to write the file directly to the visibility table,
-    although this depends on the speed of writing the correlator output to
-    the spinning disk (where the measurement sets are stored) and the ssd
-    (where the voltages are stored and correlated).
-
-    For now we will use casacore.
-    """
-    template_ms = TemplateMSVis(template_filepath, n_corr_nodes)
-
-    for uvh5_filepath in uvh5_filepaths:
-        UV = UVData()
-        UV.read(uvh5_filepath, file_type='uvh5')
-        template_ms.update_vis_and_flags(UV)
-
-    template_ms.write_vis_and_flags()
-
-def update_metadata(template_path: str, uvh5_filepath: str, freq_array_Hz: np.ndarray) -> None:
+def update_metadata(template_path: str, uvh5file: UVData, freq_array_Hz: np.ndarray=None) -> None:
     """Updates a template file with real metadata.
 
     Questions: Should we update the first two entries of the history table?
     Currently not touching that table.
     """
-    template_ms = TemplateMSMD(template_path)
-
-    UV = UVData()
-    UV.read(uvh5_filepath, file_type='uvh5')
+    template_ms = TemplateMSMD(template_path, uvh5file.Nblts)
     
-    template_ms.update_frequency(freq_array_Hz)
+    if freq_array_Hz is not None:
+        template_ms.update_frequency(freq_array_Hz)
     
-    template_ms.update_obstime(convert_jd_to_mjds(UV.time_array))
+    template_ms.update_obstime(convert_jd_to_mjds(uvh5file.time_array))
 
-    uvw_m = calculate_uvw(UV)
+    uvw_m = calculate_uvw(uvh5file)
     template_ms.update_uvw(uvw_m)
 
-    ra_rad, dec_rad = get_pointing(UV)
+    ra_rad, dec_rad = get_pointing(uvh5file)
     template_ms.update_direction(ra_rad, dec_rad)
 
 def get_pointing(uvh5file: UVData) -> tuple:
@@ -184,12 +143,23 @@ def calculate_blen(uvh5file: UVData) -> np.ndarray:
 class TemplateMSMD():
     """Access and update the metatdata of the template ms."""
 
-    def __init__(self, template_filepath: str):
+    def __init__(self, template_filepath: str, nrows: int):
         """Set the filepath and some other details for the template ms."""
         self.filepath = template_filepath
         self.float_type = 'float64'
         self.time_offset = -0.00011921
         self.nants = 117
+        
+        with table(self.filepath, readonly=False) as tb:
+            if nrows < tb.nrows():
+                rows_to_remove = tb.nrows() - nrows
+                print(f'removing {rows_to_remove}')
+                for i in range(rows_to_remove):
+                    tb.removerows(i)
+            elif nrows > tb.nrows():
+                rows_to_add = nrows - tb.nrows()
+                print(f'adding {rows_to_add}')
+                tb.addrows(rows_to_add)
 
     def update_obstime(self, tobs_mjds: np.array):
         """Update the times in the template ms with the true time of observation."""
@@ -200,18 +170,23 @@ class TemplateMSMD():
         with table(self.filepath, readonly=False) as tb:
             tb.putcol('TIME', tobs_mjds)
             tb.putcol('TIME_CENTROID', tobs_mjds)
+            tb.flush()
 
         with table(f'{self.filepath}/FEED', readonly=False) as tb:
             tb.putcol('TIME', np.tile(tstart, (self.nants)))
+            tb.flush()
 
         with table(f'{self.filepath}/FIELD', readonly=False) as tb:
             tb.putcol('TIME', tstart)
+            tb.flush()
 
         with table(f'{self.filepath}/OBSERVATION', readonly=False) as tb:
             tb.putcol('TIME_RANGE', np.tile(tstart, (1, 2)))
+            tb.flush()
 
         with table(f'{self.filepath}/SOURCE', readonly=False) as tb:
             tb.putcol('TIME', tstart_source)
+            tb.flush()
 
     def update_uvw(self, uvw_m: np.array):
         """Update the uvw array in the template ms with the true uvw's."""
@@ -219,6 +194,7 @@ class TemplateMSMD():
 
         with table(self.filepath, readonly=False) as tb:
             tb.putcol('UVW', uvw_m)
+            tb.flush()
 
     def update_direction(self, ra_rad: float, dec_rad: float):
         """Update the directions in the template ms with the true direction."""
@@ -228,9 +204,11 @@ class TemplateMSMD():
             tb.putcol('DELAY_DIR', np.tile(direction, (1, 1, 1)))
             tb.putcol('PHASE_DIR', np.tile(direction, (1, 1, 1)))
             tb.putcol('REFERENCE_DIR', np.tile(direction, (1, 1, 1)))
+            tb.flush()
 
         with table(f'{self.filepath}/SOURCE', readonly=False) as tb:
             tb.putcol('DIRECTION', np.tile(direction, (1, 1)))
+            tb.flush()
         
     def update_frequency(self, freq_array_Hz: np.ndarray):
         """Update the frequncy information in the template ms."""
@@ -255,11 +233,12 @@ class TemplateMSMD():
             tb.putcol('NET_SIDEBAND', np.tile(1 if chan_width > 0 else 0, nspw))
             tb.putcol('NUM_CHAN', np.tile(nchan, nspw))
             tb.putcol('TOTAL_BANDWIDTH', chan_width*nchan)
+            tb.flush()
 
 class TemplateMSVis():
     """Access and update the visibilities and flags for a template ms."""
 
-    def __init__(self, template_filepath: str, n_corr_nodes: int):
+    def __init__(self, template_filepath: str, n_corr_nodes: int, vis_shape: tuple):
         """Open the template ms and instantiate the vis and flag arrays."""
         # The measurement set frequencies should be in ascending order, and there
         # should be a single spectral window.
@@ -274,18 +253,13 @@ class TemplateMSVis():
             channel_width = np.median(np.diff(freq))
             freq_ascending = channel_width > 0
 
-        with table(template_filepath) as tb:
-            vis = np.array(tb.DATA[:])
-            vis_shape = vis.shape
-            vis_dtype = vis.dtype
-
         self.filepath = template_filepath
-        self.vis = np.zeros(vis_shape, vis_dtype)
-        self.flags = np.ones(vis.shape, bool)
+        self.vis = np.zeros(vis_shape, np.complex64)
+        self.flags = np.ones(vis_shape, bool)
         self.freq = freq
         self.channel_width = channel_width
         self.freq_ascending = freq_ascending
-        self.nfreq_corr = vis.shape[1]//n_corr_nodes
+        self.nfreq_corr = vis_shape[1]//n_corr_nodes
 
     def update_vis_and_flags(self, uvh5file: UVData):
         """Update the vis and flag arrays using an open uvh5 file."""
@@ -318,6 +292,7 @@ class TemplateMSVis():
         with table(self.filepath, readonly=False) as tb:
             tb.putcol('DATA', self.vis)
             tb.putcol('FLAG', self.flags)
+            tb.flush()
 
 def convert_jd_to_mjds(time_jd):
     """Convert times between jd (Julian Date) and mjds (Modified Julian Date Seconds)."""
