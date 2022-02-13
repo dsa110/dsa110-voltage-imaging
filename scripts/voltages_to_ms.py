@@ -11,7 +11,6 @@ import multiprocessing
 import queue
 import argparse
 import time
-from pkg_resources import resource_filename
 import astropy.units as u
 from dsautils.coordinates import get_declination, get_elevation
 from dsaT3.uvh5_to_ms import uvh5_to_ms
@@ -19,11 +18,6 @@ from dsaT3.utils import rsync_file, load_params, get_tstart_from_json, get_DM_fr
 from dsaT3.generate_uvh5 import generate_uvh5, parse_visibility_parameters
 from dsaT3.voltages_to_ms import *
 
-PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
-T3PARAMS = load_params(PARAMFILE)
-CORR_LIST = list(T3PARAMS['ch0'].keys())
-
-BURST_START_S = 1907*262.144e-6
 
 def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
                    full_pol: bool=False) -> None:
@@ -58,14 +52,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     corrparams = initialize_correlater(fullpol, ntint, cand, system_setup)
     uvh5params = initialize_uvh5(cand, system_setup)
 
-    vis_params = parse_visibility_parameters(T3PARAMS, tstart, ntint)
-    vis_params['tref'] = corrparams.reftime
-    vis_params['npol'] = corrparams.npol
-    vis_params['nfint'] = corrparams.nfint
-    vis_params['ntint'] = corrparams.ntint
-    corr_ch0_MHz = {key: 1e3*vis_params['fobs'][value] for key, value in vis_params['corr_ch0'].items()}
-    corr_ch0_MHz_safe = MappingProxyType(corr_ch0_MHz) # Thread-safe mapping
-    vis_params_safe = MappingProxyType(vis_params)
+
 
     # Initialize the process manager, locks, values, and queues
     manager = Manager()

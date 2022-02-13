@@ -1,5 +1,10 @@
 from collections import namedtuple
 import astropy.units as u
+from pkg_resources import resource_filename
+
+PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
+T3PARAMS = load_params(PARAMFILE)
+BURST_START_S = 1907*262.144e-6
 
 def pipeline_component(targetfn, inqueue, outqueue=None):
     """Generate a component of the pipeline."""
@@ -125,6 +130,8 @@ def initialize_system():
     SystemSetup = namedtuple(
         "SystemSetup", "T3dir T3archivedir corrdir msdir start_time_offset ref_freq corr_ch0_MHz")
     start_time_offset = BURST_START_S*u.s
+    corr_ch0_MHz = {key: 1e3*vis_params['fobs'][value] for key, value in vis_params['corr_ch0'].items()}
+
     system_setup = SystemSetup()
     return system_setup
 
@@ -167,6 +174,18 @@ def initialize_uvh5(cand, system_setup):
     UVH5Parameters = namedtuple('UVH5', 'files')
     uvh5files = [f'{system_setup.corrdir}/{cand.name}_{corr}.hdf5' for corr in corrlist]
     uvh5_params = UVH5Parameters(uvh5files)
+
+def initialize_vis_params(corrparams, cand, system_setup)
+    vis_params = parse_visibility_parameters(T3PARAMS, cand.time, corrparams.ntint)
+    vis_params['tref'] = corrparams.reftime
+    vis_params['npol'] = corrparams.npol
+    vis_params['nfint'] = corrparams.nfint
+    vis_params['ntint'] = corrparams.ntint
+    return vis_params
+
+
+    corr_ch0_MHz_safe = MappingProxyType(corr_ch0_MHz) # Thread-safe mapping
+    vis_params_safe = MappingProxyType(vis_params)
 
 # Candidate parameters
 # name time dm pointing_dec_deg voltagefiles local
