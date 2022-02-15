@@ -55,8 +55,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
         declination, declination_lock, cand.time))
     _ = get_declination_etcd()
 
-    # TODO: Do this at tref
-    generate_delay_table(cand.headerfile, declination.value)
+    generate_delay_table(uvh5.visparams, corrparams.reftime, declination.value)
 
     rsync_all_files = pipeline_component(
         generate_rsync_component(cand.local),
@@ -93,11 +92,11 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     for proc in processes:
         proc.start()
 
+    # Wait for all processes to finish
     for proc in processes:
         proc.join()
 
     # Convert uvh5 files to a measurement set
-    # TODO: pass tref as the place to cut out the dedispersed pulse around
     msname = f'{system_setup.msdir}{candname}'
     uvh5_to_ms(cand.name, cand.time, cand.dm, uvh5params.files, msname, corrparams.reftime,
                system_setup.reffreq_GHz)

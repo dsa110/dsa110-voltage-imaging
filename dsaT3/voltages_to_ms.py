@@ -124,16 +124,12 @@ def generate_declination_component(
                 ).to_value(u.deg)
     return get_declination_etcd
 
-def generate_delay_table(headername, declination):
-    # TODO: Do this with python, instead of with Vikram's script
-    gen_delay_script = ('/home/ubuntu/anaconda3/envs/dana/bin/python '
-                        '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/gen_delays.py')
-    command = f'{gen_delay_script} {headername} {declination}'
-    process = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        shell=True)
-    proc_stdout = str(process.communicate()[0].strip())
-    print(proc_stdout)
+def generate_delay_table(vis_params, reftime, declination):
+    buvw, ant_bw = calculate_uvw_and_geodelay(vis_params, reftime, declination*u.deg)
+    total_delay = get_total_delay(ant_bw, vis_params)
+    total_delay_string = '\n'.join(list(map('{0:f}'.format, total_delay)))
+    with open("delays.dat", "w", encoding='utf-8')
+        f.write(total_delay_string)
 
 def initialize_system():
     """Set system parameters needed in voltage to ms converter."""
