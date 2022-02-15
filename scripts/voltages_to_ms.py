@@ -55,7 +55,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
         declination, declination_lock, cand.time))
     _ = get_declination_etcd()
 
-    generate_delay_table(uvh5.visparams, corrparams.reftime, declination.value)
+    generate_delay_table(uvh5params.visparams, corrparams.reftime, declination.value)
 
     rsync_all_files = pipeline_component(
         generate_rsync_component(cand.local),

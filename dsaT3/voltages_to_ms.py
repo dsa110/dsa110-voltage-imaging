@@ -11,6 +11,7 @@ import astropy.units as u
 from antpos.utils import get_itrf
 from dsautils.coordinates import get_declination, get_elevation
 import dsacalib.constants as ct
+from dsaT3.generate_uvh5 import calculate_uvw_and_geodelay, get_total_delay
 from dsaT3.utils import rsync_file, load_params, get_tstart_from_json, get_DM_from_json
 from dsaT3.generate_uvh5 import generate_uvh5
 
@@ -126,9 +127,9 @@ def generate_declination_component(
 
 def generate_delay_table(vis_params, reftime, declination):
     buvw, ant_bw = calculate_uvw_and_geodelay(vis_params, reftime, declination*u.deg)
-    total_delay = get_total_delay(ant_bw, vis_params)
-    total_delay_string = '\n'.join(list(map('{0:f}'.format, total_delay)))
-    with open("delays.dat", "w", encoding='utf-8')
+    total_delay = get_total_delay(vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'], vis_params['antenna_order'])
+    total_delay_string = '\n'.join(list(map(str, total_delay)))
+    with open("delays.dat", "w", encoding='utf-8') as f:
         f.write(total_delay_string)
 
 def initialize_system():
