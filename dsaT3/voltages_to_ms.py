@@ -187,7 +187,7 @@ def initialize_correlator(fullpol, ntint, cand, system_setup):
 def initialize_uvh5(corrparams, cand, system_setup):
     corrlist = list(system_setup.corr_ch0_MHz.keys())
     uvh5files = [f'{system_setup.corrdir}/{cand.name}_{corr}.hdf5' for corr in corrlist]
-    visparams = initialize_vis_params(corrparams, cand, system_setup)
+    visparams = initialize_vis_params(corrparams, cand)
 
     UVH5Parameters = namedtuple('UVH5', 'files visparams')
     uvh5_params = UVH5Parameters(uvh5files, visparams)
@@ -256,11 +256,7 @@ def parse_visibility_parameters(params: dict, tstart: 'astropy.time.Time', ntint
         # Frequency
         'fobs': fobs,
         'corr_ch0': params['ch0'],
-        'nchan_corr': params['nchan_corr'],
-        # Polarization
-        'npol': params['npol']}
-        # TODO: Polarization is set twice
-
+        'nchan_corr': params['nchan_corr']}
     return vis_params
 
 def get_cable_delays(outrigger_delays: dict, bname: list) -> np.ndarray:
