@@ -128,7 +128,7 @@ def generate_declination_component(
 def generate_delay_table(vis_params, reftime, declination):
     buvw, ant_bw = calculate_uvw_and_geodelay(vis_params, reftime, declination*u.deg)
     total_delay = get_total_delay(vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'], vis_params['antenna_order'])
-    total_delay_string = '\n'.join(list(map(str, total_delay)))
+    total_delay_string =  '\n'.join(total_delay.flatten().astype('str'))+'\n'
     with open("delays.dat", "w", encoding='utf-8') as f:
         f.write(total_delay_string)
 
