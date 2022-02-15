@@ -1,21 +1,10 @@
 """
 Convert voltage files to measurement sets.
 """
-from types import MappingProxyType
-import re
 import os
-import glob
-import subprocess
 from multiprocessing import Process, Manager
-import multiprocessing
-import queue
 import argparse
-import time
-import astropy.units as u
-from dsautils.coordinates import get_declination, get_elevation
 from dsaT3.uvh5_to_ms import uvh5_to_ms
-from dsaT3.utils import rsync_file, load_params, get_tstart_from_json, get_DM_from_json
-from dsaT3.generate_uvh5 import generate_uvh5, parse_visibility_parameters
 from dsaT3.voltages_to_ms import *
 
 def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
@@ -48,7 +37,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     start_offset, end_offset = set_default_if_unset(start_offset, end_offset)
     system_setup = initialize_system()
     cand = initialize_candidate(candname, datestring, system_setup)
-    corrparams = initialize_correlator(fullpol, ntint, cand, system_setup)
+    corrparams = initialize_correlator(full_pol, ntint, cand, system_setup)
     uvh5params = initialize_uvh5(corrparams, cand, system_setup)
 
     # Initialize the process manager, locks, values, and queues
@@ -83,8 +72,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
 
     write_uvh5 = pipeline_component(
         generate_uvh5_component(
-            cand.name, declination, uvh5params.visparams, startoffset, end_offset,
-            ncorrfiles, ncorrfiles_lock),
+            cand.name, system_setup.corrdir, declination, uvh5params.visparams,
+            start_offset, end_offset, ncorrfiles, ncorrfiles_lock),
         uvh5_queue)
 
     processes = [
@@ -110,11 +99,11 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     # Convert uvh5 files to a measurement set
     # TODO: pass tref as the place to cut out the dedispersed pulse around
     msname = f'{system_setup.msdir}{candname}'
-    uvh5_to_ms(cand.name, cand.time, cand.dm, uvh5.files, msname, corrparams.reftime,
+    uvh5_to_ms(cand.name, cand.time, cand.dm, uvh5params.files, msname, corrparams.reftime,
                system_setup.reffreq_GHz)
 
     # Remove hdf5 files from disk
-    for hdf5file in uvh5.files:
+    for hdf5file in uvh5params.files:
         os.remove(hdf5file)
 
 def set_default_if_unset(start_offset: int, end_offset: int) -> tuple:

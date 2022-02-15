@@ -3,14 +3,14 @@ import shutil
 import glob
 import re
 import numpy as np
-from dsacalib.uvh5_to_ms import load_uvh5_file, set_antenna_positions, phase_visibilities
-from dsacalib.uvh5_to_ms import fix_descending_missing_freqs, write_UV_to_ms
-from dsaT3.dedisperse import dedisperse_and_select_times
-from dsaT3.update_template import update_metadata, TemplateMSVis
-from casacore.tables import tablecopy
-from casatasks import virtualconcat
 import astropy.units as u
 from astropy.time import Time
+from casacore.tables import tablecopy
+from casatasks import virtualconcat
+from dsacalib.uvh5_to_ms import load_uvh5_file, set_antenna_positions, phase_visibilities
+from dsacalib.uvh5_to_ms import fix_descending_missing_freqs, write_UV_to_ms
+from dsaT3.dedisperse import dedisperse_and_select_times, dedisperse
+from dsaT3.update_template import update_metadata, TemplateMSVis
 
 # TODO: Clean up parameters in this file
 UVH5DIR = '/media/ubuntu/ssd/data/'
@@ -48,24 +48,24 @@ def uvh5_to_ms(candname, candtime, dispersion_measure=None, uvh5files=None, msna
 
     if centre_time is None:
         centre_time = candtime + CENTRE_TIME_S*u.s
-    
+
     if os.path.exists(f'{msname}.ms'):
         shutil.rmtree(f'{msname}.ms')
-    
-    if (not singlems) or use_template: 
-        
+
+    if (not singlems) or use_template:
+
         if use_template:
             tablecopy(template_path, f'{msname}.ms', deep=True)
             template_ms = None
-        
+
         for uvh5file in uvh5files:
             corr = re.findall('corr[0-9][0-9]', uvh5file)[0]
             UV, _pt_dec, ra, dec = load_uvh5_file(uvh5file)
             antenna_positions = set_antenna_positions(UV)
-            process_UV(UV, dispersion_measure, ra, dec, candtime, centre_time_s, ntbins)
+            process_UV(UV, dispersion_measure, ra, dec, centre_time, ntbins, ref_freq_GHz)
 
             if use_template:
-                
+
                 if template_ms is None:
                     update_metadata(f'{msname}.ms', UV)
                     template_ms = TemplateMSVis(
@@ -73,7 +73,7 @@ def uvh5_to_ms(candname, candtime, dispersion_measure=None, uvh5files=None, msna
                         (UV.Nblts*UV.Nspws, UV.Nfreqs*len(uvh5files), UV.Npols))
 
                 template_ms.update_vis_and_flags(UV)
-                
+
             else:
 
                 write_UV_to_ms(UV, f'{msname}_{corr}', antenna_positions)
@@ -91,10 +91,10 @@ def uvh5_to_ms(candname, candtime, dispersion_measure=None, uvh5files=None, msna
 
         UV, _pt_dec, ra, dec = load_uvh5_file(uvh5files)
         antenna_positions = set_antenna_positions(UV)
-        process_UV(UV, dispersion_measure, ra, dec, candtime, centre_time_s, ntbins)
+        process_UV(UV, dispersion_measure, ra, dec, centre_time, ntbins, ref_freq_GHz)
         write_UV_to_ms(UV, msname, antenna_positions)
 
-def process_UV(UV, dispersion_measure, ra, dec, candtime, centre_time_s, ntbins):
+def process_UV(UV, dispersion_measure, ra, dec, centre_time, ntbins, ref_freq_GHz):
     """Phase, dedisperse and select times from UV file"""
 
     # TODO: account for the fact that the bws were removed for the start time
@@ -107,11 +107,11 @@ def process_UV(UV, dispersion_measure, ra, dec, candtime, centre_time_s, ntbins)
         phase_visibilities(UV, fringestop=False, interpolate_uvws=True)
 
     if dispersion_measure is not None:
-        dedisperse_and_select_times_UV(UV, dispersion_measure, candtime+centre_time_s*u.s, ntbins)
+        dedisperse_and_select_times_UV(UV, dispersion_measure, centre_time, ntbins, ref_freq_GHz)
 
     fix_descending_missing_freqs(UV)
 
-def dedisperse_and_select_times_UV(UV, dispersion_measure, centre_time, ntbins):
+def dedisperse_and_select_times_UV(UV, dispersion_measure, centre_time, ntbins, ref_freq_GHz):
     """Dedisperse the visibilities in a UVData instance.
 
     Dedisperse to the top channel.
@@ -125,12 +125,13 @@ def dedisperse_and_select_times_UV(UV, dispersion_measure, centre_time, ntbins):
     sample_time_ms = np.mean(np.diff(tobs.mjd))*DAY_TO_MS
 
     vis = UV.data_array.reshape(UV.Ntimes, UV.Nbls, nfreqs, UV.Npols)
-    
-    vis = dedisperse_and_select_times(vis, freq_GHz, sample_time_ms, dispersion_measure, centre_tbin, ntbins, REF_FREQ_GHZ)
+
+    vis = dedisperse_and_select_times(
+        vis, freq_GHz, sample_time_ms, dispersion_measure, centre_tbin, ntbins, ref_freq_GHz)
 
     UV.select(times=tobs_jd[centre_tbin-ntbins//2:centre_tbin+ntbins//2])
 
-    UV.data_array = vis.reshape(UV.Nblts, UV.Nspws, UV.Nfreqs, UV.Npols)    
+    UV.data_array = vis.reshape((UV.Nblts, UV.Nspws, UV.Nfreqs, UV.Npols))
 
 def dedisperse_UV(UV, dispersion_measure):
     """Dedisperse the visibilities in a UVData instance.

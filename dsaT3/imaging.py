@@ -169,7 +169,7 @@ def calibrate_T3ms_percorrnode(msnames: dict, bfweights: str, bfdir: str='/data/
         The directory in which the beamformer weights are stored.
     """
     antenna_order, gains = read_bfweights(bfweights, bfdir)
-    
+
     for corrnode, msname in msnames.items():
         corridx = CORR_ORDER.index(int(corrnode.strip('corr')))
         apply_calibration(msname, gains[:, corridx, :, :], antenna_order)
@@ -190,7 +190,7 @@ def calibrate_T3ms(msname, bfweights, bfdir: str='/data/dsa110/T3/calibs/'):
         The directory in which the beamformer weights are stored.
     """
     antenna_order, gains = read_bfweights(bfweights, bfdir)
-    gains = gains.reshape(gains.shape[0], -1, gains.shape[-1])
+    gains = gains.reshape((gains.shape[0], -1, gains.shape[-1]))
     apply_calibration(msname, gains, antenna_order)
 
 def apply_calibration(msname: str, gains: np.ndarray, antenna_order: list):
@@ -228,11 +228,13 @@ def apply_calibration(msname: str, gains: np.ndarray, antenna_order: list):
 
     data = data.swapaxes(0, 1).reshape((-1, nfreq, npol))
     flags = flags.swapaxes(0, 1).reshape((-1, nfreq, npol))
-    
+
     if orig_shape == ['spw', 'time', 'baseline']:
-        data = data.reshape((nbl*nt, nspw, nfreq//nspw, npol)).swapaxes(0, 1).reshape(nbl*nt*nspw, nfreq//nspw, npol)
-        flags = flags.reshape((nbl*nt, nspw, nfreq//nspw, npol)).swapaxes(0, 1).reshape(nbl*nt*nspw, nfreq//nspw, npol)
-    
+        data = data.reshape((nbl*nt, nspw, nfreq//nspw, npol)
+                           ).swapaxes(0, 1).reshape(nbl*nt*nspw, nfreq//nspw, npol)
+        flags = flags.reshape((nbl*nt, nspw, nfreq//nspw, npol)
+                             ).swapaxes(0, 1).reshape(nbl*nt*nspw, nfreq//nspw, npol)
+
     with table('{0}.ms'.format(msname), readonly=False) as tb:
         tb.putcol('CORRECTED_DATA', data)
         tb.putcol('FLAG', flags)

@@ -2,13 +2,11 @@
 """
 import os
 import re
-import sys
 import tqdm
 import h5py
 import numpy as np
 import astropy.units as u
 import astropy.constants as c
-from antpos.utils import get_itrf
 from dsamfs.io import initialize_uvh5_file, update_uvh5_file
 from dsacalib.fringestopping import calc_uvw, calc_uvw_interpolate
 import dsacalib.constants as ct

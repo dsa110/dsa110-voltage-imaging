@@ -1,7 +1,7 @@
 from dsacalib.ms_io import uvh5_to_ms
 import glob
 
-for name in ['220121aaat']:
+for name in ['220128aaas']:
     uvh5files = sorted(glob.glob(
         '/media/ubuntu/ssd/data/{0}_corr??.hdf5'.format(name)
     ))

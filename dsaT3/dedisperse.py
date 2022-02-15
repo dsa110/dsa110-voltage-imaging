@@ -3,17 +3,18 @@ from casacore.tables import table
 
 DISPERSION_CONSTANT = 10/2.41
 
-def dedisperse_and_select_times(vis, freq_GHz, sample_time_ms, dispersion_measure, centre_tbin, ntbins, ref_freq_GHz):
+def dedisperse_and_select_times(vis, freq_GHz, sample_time_ms, dispersion_measure, centre_tbin,
+                                ntbins, ref_freq_GHz):
     """Dedisperse visibilities by selecting samples in time using a sliding window in freq."""
-    ntimes, nbaselines, nfreqs, npols = vis.shape
+    _ntimes, nbaselines, nfreqs, npols = vis.shape
     assert len(freq_GHz) == nfreqs
-    
+
     dispersion_delay_ms = get_dispersion_delay_ms(freq_GHz, dispersion_measure, ref_freq_GHz)
     dispersion_delay_tbin = np.round(dispersion_delay_ms/sample_time_ms).astype(np.int)
-    
+
     vis_out = np.zeros((ntbins, nbaselines, nfreqs, npols), vis.dtype)
     for i in range(nfreqs):
-        tidx_centre = centre_tbin + dispersion_delay_tbin
+        tidx_centre = centre_tbin + dispersion_delay_tbin[i]
         tidx0 = tidx_centre - ntbins//2
         tidx1 = tidx_centre + ntbins//2
         vis_out[:, :, i, :] = vis[tidx0:tidx1, :, i, :]

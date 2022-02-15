@@ -6,8 +6,8 @@ from pyuvdata import UVData
 from casacore.tables import table
 from astropy.time import Time
 import astropy.units as u
-import dsautils.dsa_syslog as dsl
 from dsamfs.fringestopping import calc_uvw_blt
+import dsautils.dsa_syslog as dsl
 from dsaT3.utils import load_params
 from dsacalib.utils import direction as pointing_direction
 
@@ -81,10 +81,10 @@ def update_metadata(template_path: str, uvh5file: UVData, freq_array_Hz: np.ndar
     Currently not touching that table.
     """
     template_ms = TemplateMSMD(template_path, uvh5file.Nblts)
-    
+
     if freq_array_Hz is not None:
         template_ms.update_frequency(freq_array_Hz)
-    
+
     template_ms.update_obstime(convert_jd_to_mjds(uvh5file.time_array))
 
     uvw_m = calculate_uvw(uvh5file)
@@ -149,7 +149,7 @@ class TemplateMSMD():
         self.float_type = 'float64'
         self.time_offset = -0.00011921
         self.nants = 117
-        
+
         with table(self.filepath, readonly=False) as tb:
             if nrows < tb.nrows():
                 rows_to_remove = tb.nrows() - nrows
@@ -209,7 +209,7 @@ class TemplateMSMD():
         with table(f'{self.filepath}/SOURCE', readonly=False) as tb:
             tb.putcol('DIRECTION', np.tile(direction, (1, 1)))
             tb.flush()
-        
+
     def update_frequency(self, freq_array_Hz: np.ndarray):
         """Update the frequncy information in the template ms."""
         if freq_array_Hz.ndim == 1:
@@ -222,9 +222,9 @@ class TemplateMSMD():
             tb.putcol('MEAS_FREQ_REF', np.tile(5, nspw))
             tb.putcol('CHAN_FREQ', freq_array_Hz)
             tb.putcol('REF_FREQUENCY', freq_array_Hz[:, 0])
-            tb.putcol('CHAN_WIDTH', np.tile(np.abs(chan_width), nfreq))
-            tb.putcol('EFFECTIVE_BW', np.tile(np.abs(chan_width), nfreq))
-            tb.putcol('RESOLUTION', np.tile(np.abs(chan_width), nfreq))
+            tb.putcol('CHAN_WIDTH', np.tile(np.abs(chan_width), nchan))
+            tb.putcol('EFFECTIVE_BW', np.tile(np.abs(chan_width), nchan))
+            tb.putcol('RESOLUTION', np.tile(np.abs(chan_width), nchan))
             tb.putcol('FLAG_ROW', np.tile(False, nspw))
             tb.putcol('FREQ_GROUP', np.tile(0, nspw))
             tb.putcol('FREQ_GROUP_NAME', np.tile('none', nspw))
@@ -244,9 +244,9 @@ class TemplateMSVis():
         # should be a single spectral window.
         with table(f'{template_filepath}') as tb:
             spw = np.array(tb.DATA_DESC_ID[:])
-        assert np.all(spw==spw[0])
+        assert np.all(spw == spw[0])
         spw = spw[0]
-        
+
         # TODO: Update to change the visibility table shape
         with table(f'{template_filepath}/SPECTRAL_WINDOW') as tb:
             freq = np.array(tb.CHAN_FREQ[:])[spw, :]

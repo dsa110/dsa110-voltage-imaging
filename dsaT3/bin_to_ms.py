@@ -1,18 +1,13 @@
 """Write to a template ms from T3 visibilities.
 """
-import os
 import re
 import tqdm
 import numpy as np
 from pkg_resources import resource_filename
-import astropy.units as u
-import astropy.constants as c
-from antpos.utils import get_itrf
-from dsamfs.io import initialize_uvh5_file, update_uvh5_file
-from dsacalib.fringestopping import calc_uvw
-import dsacalib.constants as ct
 from dsaT3.utils import load_params
-from dsaT3.generate_uvh5 import parse_visibility_parameters, parse_size_parameters, calculate_uvw_and_geodelay
+from dsaT3.voltages_to_ms import parse_visibility_parameters
+from dsaT3.generate_uvh5 import parse_size_parameters, get_corr_frequencies
+from dsaT3.generate_uvh5 import calculate_uvw_and_geodelay
 from dsaT3.generate_uvh5 import get_total_delay, get_visibility_chunk, get_XX_YY
 
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
@@ -20,9 +15,9 @@ T3PARAMS = load_params(PARAMFILE)
 NPOL_OUT = 2
 
 def corr_to_ms(corrfile, measurement_set, pt_dec, tstart, ntint, nfint, params=T3PARAMS,
-               start_offset=0, end_offset=-1, npolout=NPOL_OUT):
+               start_offset=0, end_offset=-1, npol_out=NPOL_OUT):
     """Converts a binary correlated file to a measurement set.
-    
+
     The measurement set should already be created.
     """
     if end_offset < 0:
@@ -43,12 +38,11 @@ def corr_to_ms(corrfile, measurement_set, pt_dec, tstart, ntint, nfint, params=T
     fobs_corr_full = get_corr_frequencies(vis_params, corr)
     fobs_corr = np.median(fobs_corr_full.reshape(-1, nfint), axis=-1)
     # lamb = None
-    
-    
+
     # Get the meridian uvw coordinates, which are what we will write out
     # blen, bname = get_blen()
     # uvw_m = None
-    
+
     # The measurement set should already be created
     # Initialize the chunk size, times, frequencies and polarizations
     with open(corrfile, 'rb') as cfhandler:
@@ -96,10 +90,9 @@ def corr_to_ms(corrfile, measurement_set, pt_dec, tstart, ntint, nfint, params=T
 
             # Phase to the meridian
             # phase_model = generate_phase_model_antbased(
-            #     uvw_m, buvws, vis_params['nbls'], size_params['framespblock'], lamb, UV.ant_1_array[:UV.Nbls],
-            #     UV.ant_2_array[:UV.Nbls])
+            #     uvw_m, buvws, vis_params['nbls'], size_params['framespblock'],
+            #     lamb, UV.ant_1_array[:UV.Nbls], UV.ant_2_array[:UV.Nbls])
             # vis_chunk /= phase_model
 
             # Update the appropriate spot of the measurement set
             # TODO: chunk approach to measurement set updating.
-        
