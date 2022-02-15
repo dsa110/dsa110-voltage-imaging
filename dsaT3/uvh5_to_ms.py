@@ -89,7 +89,7 @@ def uvh5_to_ms(candname, candtime, dispersion_measure=None, uvh5files=None, msna
 
     else:
 
-        UV, _pt_dec, ra, dec = load_uvh5_file(uvh5files)
+        UV, _pt_dec, ra, dec = load_uvh5_file(uvh5files, phase_time=centre_time)
         antenna_positions = set_antenna_positions(UV)
         process_UV(UV, dispersion_measure, ra, dec, centre_time, ntbins, ref_freq_GHz)
         write_UV_to_ms(UV, msname, antenna_positions)
@@ -102,9 +102,9 @@ def process_UV(UV, dispersion_measure, ra, dec, centre_time, ntbins, ref_freq_GH
     # TODO: reflect that the data are actually phased in the uvh5 files
 
     if dispersion_measure is None:
-        phase_visibilities(UV, ra, dec, fringestop=True, interpolate_uvws=True)
+        phase_visibilities(UV, ra, dec, fringestop=True, interpolate_uvws=True, refmjd=centre_time.mjd)
     else:
-        phase_visibilities(UV, ra, dec, fringestop=False, interpolate_uvws=True)
+        phase_visibilities(UV, ra, dec, fringestop=False, interpolate_uvws=True, refmjd=centre_time.mjd)
 
     if dispersion_measure is not None:
         dedisperse_and_select_times_UV(UV, dispersion_measure, centre_time, ntbins, ref_freq_GHz)
