@@ -3,10 +3,10 @@ T3corr:
     archivedir: '/media/ubuntu/ssd/T3/'
     corrdir: '/media/ubuntu/ssd/data/'
     T3dir: '/home/ubuntu/data/T3/'
-    npol: 4
-    pols: 'XX XY YX YY'
     nchan: 8192 # native
     nchan_corr: 384
     deltaf_MHz: -0.030517578125 # native
     deltat_s: 0.000032768 # native
     nsubint:  61440
+    burst_start_s: 0.49990860800000003
+    reffreq_GHz: 1.530

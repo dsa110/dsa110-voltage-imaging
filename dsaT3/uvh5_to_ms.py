@@ -12,7 +12,7 @@ from casatasks import virtualconcat
 import astropy.units as u
 from astropy.time import Time
 
-
+# TODO: Clean up parameters in this file
 UVH5DIR = '/media/ubuntu/ssd/data/'
 CORRNAME_PATTERN = re.compile('corr[0-9][0-9]')
 MSDIR = '/media/ubuntu/data/dsa110/imaging/'
@@ -24,7 +24,8 @@ DAY_TO_S = DAY_TO_MS/1e3
 REF_FREQ_GHZ = 1.530
 
 def uvh5_to_ms(candname, candtime, dispersion_measure=None, uvh5files=None, msname=None,
-               ntbins=128, centre_time_s=CENTRE_TIME_S, template_path=TEMPLATE, singlems=False):
+               centre_time=None, ref_freq_GHz=REF_FREQ_GHZ, ntbins=8,
+               template_path=TEMPLATE, singlems=False):
     """Convert uvh5 to ms.
 
     This mostly follows the method used in the real-time system with some differences:
@@ -44,6 +45,9 @@ def uvh5_to_ms(candname, candtime, dispersion_measure=None, uvh5files=None, msna
 
     if msname is None:
         msname = f'{MSDIR}/{candname}'
+
+    if centre_time is None:
+        centre_time = candtime + CENTRE_TIME_S*u.s
     
     if os.path.exists(f'{msname}.ms'):
         shutil.rmtree(f'{msname}.ms')

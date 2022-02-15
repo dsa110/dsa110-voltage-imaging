@@ -3,8 +3,6 @@ import astropy.units as u
 from pkg_resources import resource_filename
 
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
-T3PARAMS = load_params(PARAMFILE)
-BURST_START_S = 1907*262.144e-6
 
 def pipeline_component(targetfn, inqueue, outqueue=None):
     """Generate a component of the pipeline."""
@@ -24,7 +22,7 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
                 outqueue.put(item)
     return inner
 
-def generate_rsync_component(rsync: bool) -> "Callable":
+def generate_rsync_component(local: bool) -> "Callable":
     """Generate an rsync function."""
 
     def rsync_all_files(item):
@@ -32,7 +30,7 @@ def generate_rsync_component(rsync: bool) -> "Callable":
         srcfile, vfile = item
         rsync_done = False
         if not os.path.exists(vfile):
-            if rsync:
+            if not local:
                 rsync_file(srcfile, vfile)
             else:
                 os.symlink(srcfile, vfile)
@@ -40,7 +38,7 @@ def generate_rsync_component(rsync: bool) -> "Callable":
     return rsync_all_files
 
 def generate_correlate_component(
-        ntint: int, corr_ch0: dict, full_pol: bool, ncorrfiles: "Manager().Value",
+        ntint: int, corr_ch0: dict, npol: int, ncorrfiles: "Manager().Value",
         ncorrfiles_lock: "Manager().Lock") -> "Callable":
     """Generate a correlator function."""
 
@@ -53,9 +51,9 @@ def generate_correlate_component(
         if not os.path.exists('{0}.corr'.format(vfile)):
             first_channel_MHz = corr_ch0[corr]
             command = (
-                '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit_dev '
+                '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit '
                 f'-i {vfile} -o {vfile}.corr -t {ntint} -c {first_channel_MHz} '
-                f'-d delays.dat {"" if full_pol else "-a"}')
+                f'-d delays.dat {"" if npol==4 else "-a"}')
             print(command)
             process = subprocess.Popen(
                 command,
@@ -127,16 +125,21 @@ def generate_delay_table(headername, declination):
     print(proc_stdout)
 
 def initialize_system():
+    """Set system parameters needed in voltage to ms converter."""
+    params = load_params(PARAMFILE)
     SystemSetup = namedtuple(
-        "SystemSetup", "T3dir T3archivedir corrdir msdir start_time_offset ref_freq corr_ch0_MHz")
-    start_time_offset = BURST_START_S*u.s
-    corr_ch0_MHz = {key: 1e3*vis_params['fobs'][value] for key, value in vis_params['corr_ch0'].items()}
+        "SystemSetup", "T3dir archivedir corrdir msdir start_time_offset reffreq_GHz corr_ch0_MHz")
+    start_time_offset = params['burst_start_s']*u.s    
+    corr_ch0_MHz = {corr: 1e3*params['f0_GHz']+params['deltaf_MHz']*corr_ch0
+                    for corr, corr_ch0 in params['ch0'].items()}
 
-    system_setup = SystemSetup()
+    system_setup = SystemSetup(
+        params['T3dir'], params['archivedir'], params['corrdir'], params['msdir'],
+        start_time_offset, params['reffreq_GHz'], corr_ch0_MHz)
     return system_setup
 
 def initialize_candidate(candname, datestring, system_setup):
-    Candidate = namedtuple('Candidate', 'name time voltagefiles local')
+
     corrlist = list(system_setup.corr_ch0_MHz.keys())
     t3dir = system_setup.T3dir
     archivedir = system_setup.archivedir
@@ -157,47 +160,160 @@ def initialize_candidate(candname, datestring, system_setup):
     if dispersion_measure < 1:
         dispersion_measure = None
 
+    Candidate = namedtuple('Candidate', 'name time voltagefiles local')
     cand = Candidate(candname, start_time, voltagefiles, local)
 
-def initialize_correlater(fullpol, ntint, cand, system_setup):
+def initialize_correlator(fullpol, ntint, cand, system_setup):
     corrlist = list(system_setup.corr_ch0_MHz.keys())
     reftime = cand.time + system_setup.start_time_offset
     npol = 4 if full_pol else 2
     nfint = 1 if full_pol else 8
     corrfiles = [f'{system_setup.corrdir}/{corr}_{cand.name}_data.out' for corr in CORR_LIST]
 
-    CorrelaterParameters = namedtuple('Correlator', 'reftime npol nfint ntint files')
-    correlater_params = CorrelaterParameters(reftime, npol, nfint, ntint, corrfiles)
+    CorrelatorParameters = namedtuple('Correlator', 'reftime npol nfint ntint files')
+    correlator_params = CorrelatorParameters(reftime, npol, nfint, ntint, corrfiles)
+    return correlator_params
 
-def initialize_uvh5(cand, system_setup):
+def initialize_uvh5(corrparams, cand, system_setup):
     corrlist = list(system_setup.corr_ch0_MHz.keys())
-    UVH5Parameters = namedtuple('UVH5', 'files')
     uvh5files = [f'{system_setup.corrdir}/{cand.name}_{corr}.hdf5' for corr in corrlist]
-    uvh5_params = UVH5Parameters(uvh5files)
+    visparams = initialize_vis_params(corrparms, cand, system_setup)
+
+    UVH5Parameters = namedtuple('UVH5', 'files' 'visparams')
+    uvh5_params = UVH5Parameters(uvh5files, visparams)
+    return uvh5_params
 
 def initialize_vis_params(corrparams, cand, system_setup)
-    vis_params = parse_visibility_parameters(T3PARAMS, cand.time, corrparams.ntint)
+    T3params = load_params(PARAMFILE)
+    vis_params = parse_visibility_parameters(T3params, cand.time, corrparams.ntint)
     vis_params['tref'] = corrparams.reftime
     vis_params['npol'] = corrparams.npol
     vis_params['nfint'] = corrparams.nfint
     vis_params['ntint'] = corrparams.ntint
     return vis_params
 
+def parse_visibility_parameters(params: dict, tstart: 'astropy.time.Time', ntint: int) -> dict:
+    """Parse details about the data to be extracted.
 
-    corr_ch0_MHz_safe = MappingProxyType(corr_ch0_MHz) # Thread-safe mapping
-    vis_params_safe = MappingProxyType(vis_params)
+    Parameters
+    ----------
+    params : dict
+        Parameters passed by the user definining the correlator and T3 system.
+    tstart : astropy.time.Time
+        Start time of the correlated visibility file.
+    ntint : int
+        The number of time bins integrated together in the correlated data
+        compared to the native resolution.
 
-# Candidate parameters
-# name time dm pointing_dec_deg voltagefiles local
+    Returns
+    -------
+    dict
+        Parameters that describe the visibilities to be read in.
+    """
+    antenna_order = params['antennas']
+    fobs = params['f0_GHz']+params['deltaf_MHz']*1e-3*np.arange(params['nchan'])
+    nant = len(antenna_order)
+    nbls = (nant*(nant+1))//2
 
-# System parameters
-# t3dir archivedir corrdir msdir start_time_offset ref_freq corr_ch0_MHz
+    # Visibilities have already been integrated in time, so account for that when
+    # determining the observation times.
+    tsamp = params['deltat_s']*ntint*u.s
+    tobs = tstart + (np.arange(params['nsubint']//ntint)+0.5)*tsamp
 
-# Correlater parameters
-# reftime npol nfint ntint corrfiles
+    # Get baselines
+    blen, bname = get_blen(antenna_order)
+    # Get indices for baselines to the reference antenna
+    refidxs = []
+    refant = str(antenna_order[0])
+    for i, bn in enumerate(bname):
+        if refant in bn.split('-'):
+            refidxs += [i]
 
-# UVH5 parameters
-# ??? uvh5files
+    cable_delays = get_cable_delays(params['outrigger_delays'], bname)
 
-# MS parameters
-# msname
+    vis_params = {
+        # Baselines
+        'antenna_order': antenna_order,
+        'blen': blen,
+        'bname': bname,
+        'nbls': nbls,
+        'refidxs': refidxs,
+        'antenna_cable_delays': params['outrigger_delays'],
+        'baseline_cable_delays': cable_delays,
+        # Time
+        'tsamp': tsamp,
+        'tobs': tobs,
+        # Frequency
+        'fobs': fobs,
+        'corr_ch0': params['ch0'],
+        'nchan_corr': params['nchan_corr'],
+        # Polarization
+        'npol': params['npol']}
+        # TODO: Polarization is set twice
+
+    return vis_params
+
+def get_cable_delays(outrigger_delays: dict, bname: list) -> np.ndarray:
+    """Calculate cable delays from the measured outrigger cable delays.
+
+    Antenna names in both input parameters are indexed at 1.
+
+    Parameters
+    ----------
+    outrigger_delays : dict
+        The delay for each antenna.  Missing keys have 0 delay.
+    bname : list
+        The name of each baseline.
+
+    Returns
+    -------
+    np.ndarray
+        The cable delay for each baseline in bname.
+    """
+    delays = np.zeros(len(bname), dtype=np.int)
+    for i, bn in enumerate(bname):
+        ant1, ant2 = bn.split('-')
+        delays[i] = outrigger_delays.get(int(ant1), 0)-\
+                    outrigger_delays.get(int(ant2), 0)
+    return delays
+
+def get_blen(antennas: list) -> tuple:
+    """Gets the baseline lengths for a subset of antennas.
+
+    Parameters
+    ----------
+    antennas : list
+        The antennas used in the array.
+
+    Returns
+    -------
+    blen : array
+        The ITRF coordinates of all of the baselines.
+    bname : list
+        The names of all of the baselines.
+    """
+    ant_itrf = get_itrf(
+        latlon_center=(ct.OVRO_LAT*u.rad, ct.OVRO_LON*u.rad, ct.OVRO_ALT*u.m)
+    ).loc[antennas]
+    xx = np.array(ant_itrf['dx_m'])
+    yy = np.array(ant_itrf['dy_m'])
+    zz = np.array(ant_itrf['dz_m'])
+    # Get uvw coordinates
+    nants = len(antennas)
+    nbls = (nants*(nants+1))//2
+    blen = np.zeros((nbls, 3))
+    bname = []
+    k = 0
+    for i in range(nants):
+        for j in range(i, nants):
+            blen[k, :] = np.array([
+                xx[i]-xx[j],
+                yy[i]-yy[j],
+                zz[i]-zz[j]
+            ])
+            bname += ['{0}-{1}'.format(
+                antennas[i],
+                antennas[j]
+            )]
+            k += 1
+    return blen, bname

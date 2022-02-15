@@ -48,8 +48,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     start_offset, end_offset = set_default_if_unset(start_offset, end_offset)
     system_setup = initialize_system()
     cand = initialize_candidate(candname, datestring, system_setup)
-    corrparams = initialize_correlater(fullpol, ntint, cand, system_setup)
-    uvh5params = initialize_uvh5(cand, system_setup)
+    corrparams = initialize_correlator(fullpol, ntint, cand, system_setup)
+    uvh5params = initialize_uvh5(corrparams, cand, system_setup)
 
     # Initialize the process manager, locks, values, and queues
     manager = Manager()
@@ -67,22 +67,23 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     _ = get_declination_etcd()
 
     # TODO: Do this at tref
-    generate_delay_table(headername, declination.value)
+    generate_delay_table(cand.headerfile, declination.value)
 
     rsync_all_files = pipeline_component(
-        generate_rsync_component(rsync),
+        generate_rsync_component(cand.local),
         rsync_queue,
         corr_queue)
 
     correlate = pipeline_component(
         generate_correlate_component(
-            ntint, corr_ch0_MHz_safe, full_pol, ncorrfiles, ncorrfiles_lock),
+            corrparams.ntint, system_setup.corr_ch0_MHz,
+            corrparams.npol, ncorrfiles, ncorrfiles_lock),
         corr_queue,
         uvh5_queue)
 
     write_uvh5 = pipeline_component(
         generate_uvh5_component(
-            candname, declination, vis_params_safe, startoffset, end_offset,
+            cand.name, declination, uvh5params.visparams, startoffset, end_offset,
             ncorrfiles, ncorrfiles_lock),
         uvh5_queue)
 
@@ -109,7 +110,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     # Convert uvh5 files to a measurement set
     # TODO: pass tref as the place to cut out the dedispersed pulse around
     msname = f'{system_setup.msdir}{candname}'
-    uvh5_to_ms(cand.name, cand.time, cand.dm, uvh5.files, msname)
+    uvh5_to_ms(cand.name, cand.time, cand.dm, uvh5.files, msname, corrparams.reftime,
+               system_setup.reffreq_GHz)
 
     # Remove hdf5 files from disk
     for hdf5file in uvh5.files:
