@@ -131,10 +131,11 @@ def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int) 
     nchan = vis_params['nchan_corr']//vis_params['nfint']
     itemspframe = vis_params['nbls']*nchan*vis_params['npol']*2
     framespblock = 8
-    itemspblock = itemspframe*framespblock
     if (end_offset - start_offset)%framespblock != 0:
         framespblock = end_offset-start_offset
         print(f'Changing framespblock to {framespblock}')
+
+    itemspblock = itemspframe*framespblock
     nblocks = (end_offset-start_offset)//framespblock
     chunk_shape = (
         framespblock,
