@@ -4,10 +4,14 @@ Convert voltage files to measurement sets.
 import os
 from multiprocessing import Process, Manager
 import argparse
-from dsaT3.uvh5_to_ms import uvh5_to_ms
+# from dsaT3.uvh5_to_ms import uvh5_to_ms
+from dsacalib.uvh5_to_ms import uvh5_to_ms
 from dsaT3.voltages_to_ms import *
 import dsautils.cnf as dsc
 from astropy.time import Time
+import astropy.units as u
+
+RA, DEC = 85.650625*u.deg, 49.85213889*u.deg
 
 def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
                    full_pol: bool=False) -> None:
@@ -103,6 +107,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     # msname = f'{system_setup.msdir}{candname}'
     # uvh5_to_ms(cand.name, cand.time, cand.dm, uvh5params.files, msname, corrparams.reftime,
     #            system_setup.reffreq_GHz)
+    msname = f'{system_setup.msdir}{candname}_RT'
+    uvh5_to_ms(uvh5params.files, msname, ra=RA , dec=DEC ,refmjd=corrparams.reftime)
 
     # # Remove hdf5 files from disk
     # for hdf5file in uvh5params.files:
