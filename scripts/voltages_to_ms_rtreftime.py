@@ -45,9 +45,6 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     cand = initialize_candidate(candname, datestring, system_setup)
     corrparams = initialize_correlator(full_pol, ntint, cand, system_setup)
     uvh5params = initialize_uvh5(corrparams, cand, system_setup)
-    print(system_setup)
-
-    return
 
     # Initialize the process manager, locks, values, and queues
     manager = Manager()
