@@ -94,8 +94,8 @@ def plot_image(imname, verbose=False, outname=None, show=True, expected_point=No
     )
     if expected_point is not None:
         plttitle += ', offset by {0:.2f} {1:.2f}'.format(
-            (brightest_point[0]-expected_point[0]).to(u.arcmin),
-            (brightest_point[1]-expected_point[1]).to(u.arcmin)
+            (brightest_point[0]-expected_point[0]).to(u.arcsecond),
+            (brightest_point[1]-expected_point[1]).to(u.arcsecond)
         )
     plt.title(plttitle)
     if outname is not None:
