@@ -102,7 +102,7 @@ def process_UV(UV, dispersion_measure, ra, dec, centre_time, ntbins, ref_freq_GH
     # TODO: reflect that the data are actually phased in the uvh5 files
 
     if dispersion_measure is None:
-        phase_visibilities(UV, ra, dec, fringestop=True, interpolate_uvws=True, refmjd=centre_time.mjd)
+        phase_visibilities(UV, ra, dec, fringestop=True, interpolate_uvws=False, refmjd=centre_time.mjd)
     else:
         phase_visibilities(UV, ra, dec, fringestop=False, interpolate_uvws=True, refmjd=centre_time.mjd)
 
