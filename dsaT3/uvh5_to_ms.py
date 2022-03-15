@@ -9,7 +9,6 @@ from casacore.tables import tablecopy
 from casatasks import virtualconcat
 from dsacalib.uvh5_to_ms import load_uvh5_file, set_antenna_positions, phase_visibilities
 from dsacalib.uvh5_to_ms import fix_descending_missing_freqs, write_UV_to_ms
-from dsaT3.dedisperse import dedisperse_and_select_times, dedisperse
 from dsaT3.update_template import update_metadata, TemplateMSVis
 
 # TODO: Clean up parameters in this file
@@ -23,7 +22,7 @@ DAY_TO_MS = 86400000.0
 DAY_TO_S = DAY_TO_MS/1e3
 REF_FREQ_GHZ = 1.530
 
-def uvh5_to_ms(candname, candtime, dispersion_measure=None, uvh5files=None, msname=None,
+def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
                centre_time=None, ref_freq_GHz=REF_FREQ_GHZ, ntbins=8,
                template_path=TEMPLATE, singlems=False):
     """Convert uvh5 to ms.
@@ -32,12 +31,6 @@ def uvh5_to_ms(candname, candtime, dispersion_measure=None, uvh5files=None, msna
     * We need to account for removing geometric delays to the start of the observation.
     * We have the option to dedisperse.
     """
-    if dispersion_measure is not None and template_path is not None:
-        print('Currently using a template for dedispersed data is not working reliable.')
-        print(f'Will create new multi-ms for {candname}.')
-        template_path = None
-        singlems = False
-
     use_template = template_path is not None
 
     if uvh5files is None:
@@ -62,7 +55,7 @@ def uvh5_to_ms(candname, candtime, dispersion_measure=None, uvh5files=None, msna
             corr = re.findall('corr[0-9][0-9]', uvh5file)[0]
             UV, _pt_dec, ra, dec = load_uvh5_file(uvh5file, phase_time=centre_time)
             antenna_positions = set_antenna_positions(UV)
-            process_UV(UV, dispersion_measure, ra, dec, centre_time, ntbins, ref_freq_GHz)
+            process_UV(UV, ra, dec, centre_time, ntbins, ref_freq_GHz)
 
             if use_template:
 
@@ -91,62 +84,25 @@ def uvh5_to_ms(candname, candtime, dispersion_measure=None, uvh5files=None, msna
 
         UV, _pt_dec, ra, dec = load_uvh5_file(uvh5files, phase_time=centre_time)
         antenna_positions = set_antenna_positions(UV)
-        process_UV(UV, dispersion_measure, ra, dec, centre_time, ntbins, ref_freq_GHz)
+        process_UV(UV, ra, dec, centre_time, ntbins, ref_freq_GHz)
         write_UV_to_ms(UV, msname, antenna_positions)
 
-def process_UV(UV, dispersion_measure, ra, dec, centre_time, ntbins, ref_freq_GHz):
+def process_UV(UV, ra, dec, centre_time, ntbins=None):
     """Phase, dedisperse and select times from UV file"""
 
     # TODO: account for the fact that the bws were removed for the start time
     # TODO: change ra and dec to be at the start of the burst
     # TODO: reflect that the data are actually phased in the uvh5 files
 
-    if dispersion_measure is None:
+    if ntbins is None:
         phase_visibilities(UV, ra, dec, fringestop=True, interpolate_uvws=False, refmjd=centre_time.mjd)
     else:
         phase_visibilities(UV, ra, dec, fringestop=False, interpolate_uvws=True, refmjd=centre_time.mjd)
 
-    if dispersion_measure is not None:
-        dedisperse_and_select_times_UV(UV, dispersion_measure, centre_time, ntbins, ref_freq_GHz)
+    if ntbins is not None:
+        select_times_UV(UV,  centre_time, ntbins, ref_freq_GHz)
 
     fix_descending_missing_freqs(UV)
-
-def dedisperse_and_select_times_UV(UV, dispersion_measure, centre_time, ntbins, ref_freq_GHz):
-    """Dedisperse the visibilities in a UVData instance.
-
-    Dedisperse to the top channel.
-    """
-    freq_GHz = UV.freq_array.reshape(-1)/1e9
-    nfreqs = freq_GHz.size
-
-    tobs_jd = UV.time_array.reshape(UV.Ntimes, UV.Nbls)[:, 0]
-    tobs = Time(tobs_jd, format='jd')
-    centre_tbin = np.searchsorted(tobs.mjd, centre_time.mjd)
-    sample_time_ms = np.mean(np.diff(tobs.mjd))*DAY_TO_MS
-
-    vis = UV.data_array.reshape(UV.Ntimes, UV.Nbls, nfreqs, UV.Npols)
-
-    vis = dedisperse_and_select_times(
-        vis, freq_GHz, sample_time_ms, dispersion_measure, centre_tbin, ntbins, ref_freq_GHz)
-
-    UV.select(times=tobs_jd[centre_tbin-ntbins//2:centre_tbin+ntbins//2])
-
-    UV.data_array = vis.reshape((UV.Nblts, UV.Nspws, UV.Nfreqs, UV.Npols))
-
-def dedisperse_UV(UV, dispersion_measure):
-    """Dedisperse the visibilities in a UVData instance.
-
-    Dedisperse to the top channel.
-    """
-    freq_GHz = UV.freq_array.reshape(-1)/1e9
-    nfreqs = freq_GHz.size
-
-    time = UV.time_array.reshape(UV.Ntimes, UV.Nbls)[:, 0]
-    sample_time_ms = np.mean(np.diff(time))*DAY_TO_MS
-
-    vis = UV.data_array.reshape(UV.Ntimes, UV.Nbls, nfreqs, UV.Npols)
-    vis = dedisperse(vis, freq_GHz, sample_time_ms, dispersion_measure, REF_FREQ_GHZ)
-    UV.data_array = vis.reshape(UV.Nblts, UV.Nspws, UV.Nfreqs, UV.Npols)
 
 def select_times_UV(UV, centre_time, ntbins):
     """Select only some times around `centre_time_s` from a UVfile.

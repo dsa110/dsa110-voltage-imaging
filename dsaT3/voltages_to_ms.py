@@ -57,8 +57,8 @@ def generate_rsync_component(local: bool) -> "Callable":
     return rsync_all_files
 
 def generate_correlate_component(
-        ntint: int, corr_ch0: dict, npol: int, ncorrfiles: "Manager().Value",
-        ncorrfiles_lock: "Manager().Lock") -> "Callable":
+        dispersion_measure: float, ntint: int, corr_ch0: dict, npol: int,
+        ncorrfiles: "Manager().Value", ncorrfiles_lock: "Manager().Lock") -> "Callable":
     """Generate a correlator function."""
 
     def correlate(vfile):
@@ -70,9 +70,11 @@ def generate_correlate_component(
         if not os.path.exists('{0}.corr'.format(vfile)):
             first_channel_MHz = corr_ch0[corr]
             command = (
-                '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit '
+                '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit_dev '
                 f'-i {vfile} -o {vfile}.corr -t {ntint} -c {first_channel_MHz} '
                 f'-d delays.dat {"" if npol==4 else "-a"}')
+            if dispersion_measure is not None:
+                command += f' -m {dispersion_measure}'
             print(command)
             process = subprocess.Popen(
                 command,

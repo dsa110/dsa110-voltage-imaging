@@ -8,7 +8,7 @@ from dsaT3.uvh5_to_ms import uvh5_to_ms
 from dsaT3.voltages_to_ms import *
 
 def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
-                   full_pol: bool=False) -> None:
+                   dispersion_measure: float=None, full_pol: bool=False) -> None:
     """
     Correlate voltage files and convert to a measurement set.
 
@@ -32,6 +32,11 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
         The last time sample (after correlation) to write to the measurement
         set. If not provide,d the entire time is converted to a measurement
         set.
+    dispersion_measure: float
+        Overrides the dispersion measure in the json header file.
+    full_pol: bool
+        If True, no frequency averaging is done, and 4 polarizations are written out.
+        If False, frequency averaging x 8 is done, and XX and YY are written out.
     """
 
     start_offset, end_offset = set_default_if_unset(start_offset, end_offset)
@@ -39,6 +44,9 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     cand = initialize_candidate(candname, datestring, system_setup)
     corrparams = initialize_correlator(full_pol, ntint, cand, system_setup)
     uvh5params = initialize_uvh5(corrparams, cand, system_setup)
+
+    if dispersion_measure is not None:
+        cand.dm = dispersion_measure
 
     # Initialize the process manager, locks, values, and queues
     manager = Manager()
@@ -64,7 +72,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
 
     correlate = pipeline_component(
         generate_correlate_component(
-            corrparams.ntint, system_setup.corr_ch0_MHz,
+            cand.dm, corrparams.ntint, system_setup.corr_ch0_MHz,
             corrparams.npol, ncorrfiles, ncorrfiles_lock),
         corr_queue,
         uvh5_queue)
@@ -98,7 +106,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
 
     # Convert uvh5 files to a measurement set
     msname = f'{system_setup.msdir}{candname}'
-    uvh5_to_ms(cand.name, cand.time, cand.dm, uvh5params.files, msname, corrparams.reftime,
+    uvh5_to_ms(cand.name, cand.time, uvh5params.files, msname, corrparams.reftime,
                system_setup.reffreq_GHz)
 
     # Remove hdf5 files from disk
@@ -145,6 +153,11 @@ def parse_commandline_arguments() -> "argparse.Namespace":
         nargs='?',
         default=4788,
         help='number of bins from end of correlation to write to ms')
+    parser.add_argument(
+        '--dm',
+        type=float,
+        nargs='?',
+        help='dispersion measure to use instead of value in header file')
 
     args = parser.parse_args()
     return args
@@ -152,4 +165,5 @@ def parse_commandline_arguments() -> "argparse.Namespace":
 if __name__ == '__main__':
     ARGS = parse_commandline_arguments()
     voltages_to_ms(ARGS.candname, ARGS.datestring, ntint=ARGS.ntint,
-                   start_offset=ARGS.startoffset, end_offset=ARGS.stopoffset)
+                   start_offset=ARGS.startoffset, end_offset=ARGS.stopoffset,
+                   dispersion_measure=ARGS.dm)
