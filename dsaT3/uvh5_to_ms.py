@@ -1,3 +1,5 @@
+"""Convert a uvh5 file containing visibilities from T3 voltages to a measurement set."""
+
 import os
 import shutil
 import glob
@@ -23,8 +25,7 @@ DAY_TO_S = DAY_TO_MS/1e3
 REF_FREQ_GHZ = 1.530
 
 def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
-               centre_time=None, ref_freq_GHz=REF_FREQ_GHZ, ntbins=8,
-               template_path=TEMPLATE, singlems=False):
+               centre_time=None, ntbins=8, template_path=TEMPLATE, singlems=False):
     """Convert uvh5 to ms.
 
     This mostly follows the method used in the real-time system with some differences:
@@ -55,7 +56,7 @@ def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
             corr = re.findall('corr[0-9][0-9]', uvh5file)[0]
             UV, _pt_dec, ra, dec = load_uvh5_file(uvh5file, phase_time=centre_time)
             antenna_positions = set_antenna_positions(UV)
-            process_UV(UV, ra, dec, centre_time, ntbins, ref_freq_GHz)
+            process_UV(UV, ra, dec, centre_time, ntbins)
 
             if use_template:
 
@@ -84,7 +85,7 @@ def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
 
         UV, _pt_dec, ra, dec = load_uvh5_file(uvh5files, phase_time=centre_time)
         antenna_positions = set_antenna_positions(UV)
-        process_UV(UV, ra, dec, centre_time, ntbins, ref_freq_GHz)
+        process_UV(UV, ra, dec, centre_time, ntbins)
         write_UV_to_ms(UV, msname, antenna_positions)
 
 def process_UV(UV, ra, dec, centre_time, ntbins=None):
@@ -95,12 +96,14 @@ def process_UV(UV, ra, dec, centre_time, ntbins=None):
     # TODO: reflect that the data are actually phased in the uvh5 files
 
     if ntbins is None:
-        phase_visibilities(UV, ra, dec, fringestop=True, interpolate_uvws=False, refmjd=centre_time.mjd)
+        phase_visibilities(
+            UV, ra, dec, fringestop=True, interpolate_uvws=False, refmjd=centre_time.mjd)
     else:
-        phase_visibilities(UV, ra, dec, fringestop=False, interpolate_uvws=True, refmjd=centre_time.mjd)
+        phase_visibilities(
+            UV, ra, dec, fringestop=False, interpolate_uvws=True, refmjd=centre_time.mjd)
 
     if ntbins is not None:
-        select_times_UV(UV,  centre_time, ntbins, ref_freq_GHz)
+        select_times_UV(UV, centre_time, ntbins)
 
     fix_descending_missing_freqs(UV)
 

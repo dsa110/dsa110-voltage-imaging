@@ -8,7 +8,7 @@ from dsaT3.uvh5_to_ms import uvh5_to_ms
 from dsaT3.voltages_to_ms import *
 
 def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
-                   dispersion_measure: float=None, full_pol: bool=False) -> None:
+                   dispersion_measure: float=None, full_pol: bool=False, continuum_source: bool=False) -> None:
     """
     Correlate voltage files and convert to a measurement set.
 
@@ -41,12 +41,9 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
 
     start_offset, end_offset = set_default_if_unset(start_offset, end_offset)
     system_setup = initialize_system()
-    cand = initialize_candidate(candname, datestring, system_setup)
+    cand = initialize_candidate(candname, datestring, system_setup, dispersion_measure)
     corrparams = initialize_correlator(full_pol, ntint, cand, system_setup)
     uvh5params = initialize_uvh5(corrparams, cand, system_setup)
-
-    if dispersion_measure is not None:
-        cand.dm = dispersion_measure
 
     # Initialize the process manager, locks, values, and queues
     manager = Manager()
@@ -106,8 +103,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
 
     # Convert uvh5 files to a measurement set
     msname = f'{system_setup.msdir}{candname}'
-    uvh5_to_ms(cand.name, cand.time, uvh5params.files, msname, corrparams.reftime,
-               system_setup.reffreq_GHz)
+    ntbins = None if continuum_source else 8
+    uvh5_to_ms(cand.name, cand.time, uvh5params.files, msname, corrparams.reftime, ntbins)
 
     # Remove hdf5 files from disk
     for hdf5file in uvh5params.files:
@@ -158,6 +155,8 @@ def parse_commandline_arguments() -> "argparse.Namespace":
         type=float,
         nargs='?',
         help='dispersion measure to use instead of value in header file')
+    parser.add_argument('--continuum', action='store_true')
+    parser.set_defaults(continuum=False)
 
     args = parser.parse_args()
     return args
@@ -166,4 +165,4 @@ if __name__ == '__main__':
     ARGS = parse_commandline_arguments()
     voltages_to_ms(ARGS.candname, ARGS.datestring, ntint=ARGS.ntint,
                    start_offset=ARGS.startoffset, end_offset=ARGS.stopoffset,
-                   dispersion_measure=ARGS.dm)
+                   dispersion_measure=ARGS.dm, continuum_source=ARGS.continuum)

@@ -1,3 +1,5 @@
+"""Utilties for converting T3 voltage dumps to measurement sets."""
+
 from collections import namedtuple
 import time
 import re
@@ -15,18 +17,19 @@ from dsaT3.generate_uvh5 import calculate_uvw_and_geodelay, get_total_delay
 from dsaT3.utils import rsync_file, load_params, get_tstart_from_json, get_DM_from_json
 from dsaT3.generate_uvh5 import generate_uvh5
 
-__all__ = ['PARAMFILE', 'pipeline_component', 'generate_rsync_component',
-            'generate_correlate_component', 'generate_uvh5_component',
-            'process_join', 'generate_declination_component', 'generate_delay_table', 
-            'initialize_system', 'initialize_candidate', 'initialize_correlator',
-            'initialize_uvh5', 'initialize_vis_params', 'parse_visibility_parameters', 
-            'get_cable_delays', 'get_blen']
+__all__ = ['pipeline_component', 'generate_rsync_component',
+           'generate_correlate_component', 'generate_uvh5_component',
+           'process_join', 'generate_declination_component', 'generate_delay_table',
+           'initialize_system', 'initialize_candidate', 'initialize_correlator',
+           'initialize_uvh5', 'initialize_vis_params', 'parse_visibility_parameters',
+           'get_cable_delays', 'get_blen']
 
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 
 def pipeline_component(targetfn, inqueue, outqueue=None):
     """Generate a component of the pipeline."""
     def inner():
+        """Process data from a queue."""
         done = False
         while not done:
             try:
@@ -94,12 +97,15 @@ def generate_correlate_component(
     return correlate
 
 def generate_uvh5_component(
-        candname: str, corrdir: str, declination: "Manager().Value", vis_params: dict, start_offset: int,
-        end_offset: int, ncorrfiles: "Manager().Value", ncorrfiles_lock: "Manager().Lock") -> "Callable":
+        candname: str, corrdir: str, declination: "Manager().Value", vis_params: dict,
+        start_offset: int, end_offset: int, ncorrfiles: "Manager().Value",
+        ncorrfiles_lock: "Manager().Lock") -> "Callable":
     """Generate a uvh5 writer."""
+
     def write_uvh5(corrfile):
+        """Write correlated data to a uvh5 file."""
         _uvh5name = generate_uvh5(
-            '{0}/{1}'.format(corrdir, candname),
+            f'{corrdir}/{candname}',
             declination.value*u.deg,
             corrfile=corrfile,
             vis_params=vis_params,
@@ -114,7 +120,10 @@ def generate_uvh5_component(
     return write_uvh5
 
 def process_join(targetfn):
+    """Generate a function that starts and process and waits for it to complete."""
+
     def inner():
+        """Start a process and then wait for it to complete."""
         process = Process(
             target=targetfn,
             daemon=True)
@@ -126,7 +135,10 @@ def process_join(targetfn):
 def generate_declination_component(
         declination: "Manager().Value", declination_lock: "Manager().Lock",
         tstart: "astropy.time.Time") -> "Callable":
+    """Generate a pipeline component to get the declination from etcd."""
+
     def get_declination_etcd():
+        """Look up the declination from etcd."""
         with declination_lock:
             if declination.value is None:
                 declination.value = get_declination(
@@ -135,9 +147,12 @@ def generate_declination_component(
     return get_declination_etcd
 
 def generate_delay_table(vis_params, reftime, declination):
-    buvw, ant_bw = calculate_uvw_and_geodelay(vis_params, reftime, declination*u.deg)
-    total_delay = get_total_delay(vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'], vis_params['antenna_order'])
-    total_delay_string =  '\n'.join(total_delay.flatten().astype('str'))+'\n'
+    """Generate a table of geometric and cable delays for the correlator."""
+    _buvw, ant_bw = calculate_uvw_and_geodelay(vis_params, reftime, declination*u.deg)
+    total_delay = get_total_delay(
+        vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'],
+        vis_params['antenna_order'])
+    total_delay_string = '\n'.join(total_delay.flatten().astype('str'))+'\n'
     with open("delays.dat", "w", encoding='utf-8') as f:
         f.write(total_delay_string)
 
@@ -155,14 +170,15 @@ def initialize_system():
         start_time_offset, params['reffreq_GHz'], corr_ch0_MHz)
     return system_setup
 
-def initialize_candidate(candname, datestring, system_setup):
-
+def initialize_candidate(candname, datestring, system_setup, dispersion_measure=None):
+    """Set candidate parameters using information in the json header."""
     corrlist = list(system_setup.corr_ch0_MHz.keys())
 
     if datestring == 'current':
         local = False
         headerfile = f'{system_setup.t3dir}/{candname}.json'
-        voltagefiles = [f'{corr}.sas.pvt:/home/ubuntu/data/{candname}_data.out' for corr in corrlist]
+        voltagefiles = [f'{corr}.sas.pvt:/home/ubuntu/data/{candname}_data.out'
+                        for corr in corrlist]
 
     else:
         local = True
@@ -171,15 +187,18 @@ def initialize_candidate(candname, datestring, system_setup):
                         for corr in corrlist]
 
     tstart = get_tstart_from_json(headerfile)
-    dispersion_measure = get_DM_from_json(headerfile)
-    if dispersion_measure < 1:
-        dispersion_measure = None
+
+    if dispersion_measure is None:
+        dispersion_measure = get_DM_from_json(headerfile)
+        if dispersion_measure < 1:
+            dispersion_measure = None
 
     Candidate = namedtuple('Candidate', 'name time dm voltagefiles headerfile local')
     cand = Candidate(candname, tstart, dispersion_measure, voltagefiles, headerfile, local)
     return cand
 
 def initialize_correlator(fullpol, ntint, cand, system_setup):
+    """Set correlator parameters."""
     corrlist = list(system_setup.corr_ch0_MHz.keys())
     reftime = cand.time + system_setup.start_time_offset
     npol = 4 if fullpol else 2
@@ -191,6 +210,7 @@ def initialize_correlator(fullpol, ntint, cand, system_setup):
     return correlator_params
 
 def initialize_uvh5(corrparams, cand, system_setup):
+    """Set parameters for writing uvh5 files."""
     corrlist = list(system_setup.corr_ch0_MHz.keys())
     uvh5files = [f'{system_setup.corrdir}/{cand.name}_{corr}.hdf5' for corr in corrlist]
     visparams = initialize_vis_params(corrparams, cand)
@@ -200,6 +220,7 @@ def initialize_uvh5(corrparams, cand, system_setup):
     return uvh5_params
 
 def initialize_vis_params(corrparams, cand):
+    """Set parameters that describe the visbilities produced by the correlator."""
     T3params = load_params(PARAMFILE)
     vis_params = parse_visibility_parameters(T3params, cand.time, corrparams.ntint)
     vis_params['tref'] = corrparams.reftime

@@ -1,3 +1,5 @@
+"""Dedisperse visibilities."""
+
 import numpy as np
 from casacore.tables import table
 
