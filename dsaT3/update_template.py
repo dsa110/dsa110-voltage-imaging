@@ -130,7 +130,7 @@ def calculate_uvw(uvh5file: UVData, reftime_mjd: float=None) -> np.ndarray:
     print(blen.shape, nblts, ntimes)
 
     uvw = calc_uvw_blt(
-        np.tile(blen[np.newaxis, :, np.newaxis], (ntimes, 1, 3)).reshape(nblts, 3),
+        np.tile(blen[np.newaxis, :, :], (ntimes, 1, 1)).reshape(nblts, 3),
         time_mjd,
         'HADEC',
         np.tile(0*u.rad, nblts),
