@@ -21,7 +21,8 @@ LOGGER.app("dsacalib")
 
 # def create_template(template_path, outms_path):
 #     return
-#     # We also need to include some of the things from the main table here, e.g. WEIGHT_SPECTRUM, etc.
+#     # We also need to include some of the things from the main table here
+#     # e.g. WEIGHT_SPECTRUM, etc.
 #     not_to_copy = [
 #         'TIME', 'TIME_CENTROID', 'FEED TIME', 'FIELD TIME', 'OBSERVATION TIME_RANGE', 'SOURCE TIME',
 #         'UVW', 'FIELD DELAY_DIR', 'FIELD PHASE_DIR', 'FIELD REFERENCE_DIR', 'SOURCE DIRECTION',
@@ -117,14 +118,14 @@ def calculate_uvw(uvh5file: UVData, reftime_mjd: float=None) -> np.ndarray:
     # TODO: Test how different these are from the values in the uvh5 files
     if reftime_mjd is None:
         time_mjd = convert_jd_to_mjd(uvh5file.time_array)
-        ntimes = UV.Ntimes
+        ntimes = uvh5file.Ntimes
     else:
-        time_mjd = np.tile(reftime_mjd, (UV.Nbls))
+        time_mjd = np.tile(reftime_mjd, (uvh5file.Nbls))
         ntimes = 1
 
     pt_dec = uvh5file.extra_keywords['phase_center_dec']*u.rad
     blen = calculate_blen(uvh5file)
-    nblts = UV.Nbls*ntimes
+    nblts = uvh5file.Nbls*ntimes
 
     uvw = calc_uvw_blt(
         np.tile(blen, (ntimes, 1)).flatten(),

@@ -92,8 +92,6 @@ def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
 def process_UV(UV, ra, dec, centre_time, ntbins=None):
     """Phase, dedisperse and select times from UV file"""
 
-    # TODO: account for the fact that the bws were removed for the start time
-    # TODO: change ra and dec to be at the start of the burst
     # TODO: reflect that the data are actually phased in the uvh5 files
 
     if ntbins is None:
