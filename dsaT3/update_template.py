@@ -125,7 +125,9 @@ def calculate_uvw(uvh5file: UVData, reftime_mjd: float=None) -> np.ndarray:
 
     pt_dec = uvh5file.extra_keywords['phase_center_dec']*u.rad
     blen = calculate_blen(uvh5file)
-    nblts = uvh5file.Nbls*ntimes
+    nblts = blen.shape[0]*ntimes
+
+    print(blen.shape, nblts, ntimes)
 
     uvw = calc_uvw_blt(
         np.tile(blen[np.newaxis, :, np.newaxis], (ntimes, 1, 3)).reshape(nblts, 3),
