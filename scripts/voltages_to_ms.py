@@ -110,8 +110,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     uvh5_to_ms(cand.name, cand.time, uvh5params.files, msname, corrparams.reftime, ntbins)
 
     # Remove hdf5 files from disk
-    for hdf5file in uvh5params.files:
-        os.remove(hdf5file)
+    # for hdf5file in uvh5params.files:
+    #     os.remove(hdf5file)
 
 def set_default_if_unset(start_offset: int, end_offset: int) -> tuple:
     """Set default `start_offset` and `end_offset` if they aren't set."""

@@ -39,7 +39,6 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
         If True, no frequency averaging is done, and 4 polarizations are written out.
         If False, frequency averaging x 8 is done, and XX and YY are written out.
     """
-    print(f'Continuum Source: {continuum_source}')
 
     start_offset, end_offset = set_default_if_unset(start_offset, end_offset)
     system_setup = initialize_system()

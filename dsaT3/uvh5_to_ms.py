@@ -62,7 +62,7 @@ def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
 
                 if template_ms is None:
                     reftime_mjd = centre_time.mjd if ntbins is not None else None
-                    update_metadata(f'{msname}.ms', UV, reftime_mjd)
+                    update_metadata(f'{msname}.ms', UV, reftime_mjd=reftime_mjd)
                     template_ms = TemplateMSVis(
                         f'{msname}.ms', 16,
                         (UV.Nblts*UV.Nspws, UV.Nfreqs*len(uvh5files), UV.Npols))

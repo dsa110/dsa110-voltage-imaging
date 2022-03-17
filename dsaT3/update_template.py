@@ -75,7 +75,9 @@ LOGGER.app("dsacalib")
 #             if key2[0] != '_' and total_name not in not_to_copy:
 #                 print(f'Update {keyname} {key2}')
 
-def update_metadata(template_path: str, uvh5file: UVData, freq_array_Hz: np.ndarray=None) -> None:
+def update_metadata(
+        template_path: str, uvh5file: UVData, freq_array_Hz: np.ndarray=None,
+        reftime_mjd: float=None) -> None:
     """Updates a template file with real metadata.
 
     Questions: Should we update the first two entries of the history table?
@@ -88,7 +90,7 @@ def update_metadata(template_path: str, uvh5file: UVData, freq_array_Hz: np.ndar
 
     template_ms.update_obstime(convert_jd_to_mjds(uvh5file.time_array))
 
-    uvw_m = calculate_uvw(uvh5file)
+    uvw_m = calculate_uvw(uvh5file, reftime_mjd)
     template_ms.update_uvw(uvw_m)
 
     ra_rad, dec_rad = get_pointing(uvh5file)
@@ -117,9 +119,11 @@ def calculate_uvw(uvh5file: UVData, reftime_mjd: float=None) -> np.ndarray:
     """
     # TODO: Test how different these are from the values in the uvh5 files
     if reftime_mjd is None:
+        print('Calculating uvws for all times')
         time_mjd = convert_jd_to_mjd(uvh5file.time_array)
         ntimes = uvh5file.Ntimes
     else:
+        print(f'Calculating uvws for {time_mjd}')
         time_mjd = np.tile(reftime_mjd, (uvh5file.Nbls))
         ntimes = 1
 
