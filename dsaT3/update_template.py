@@ -102,7 +102,7 @@ def get_pointing(uvh5file: UVData) -> tuple:
     ra_rad, dec_rad = pointing.J2000()
     return ra_rad, dec_rad
 
-def calculate_uvw(uvh5file: UVData) -> np.ndarray:
+def calculate_uvw(uvh5file: UVData, reftime_mjd: float=None) -> np.ndarray:
     """Calculate the uvw coordinates for a transit observation.
 
     The uvw array is calculated for the midpoint of the 2-s observation to
@@ -114,17 +114,28 @@ def calculate_uvw(uvh5file: UVData) -> np.ndarray:
     with precision in the uvfits file format.  Differences are on
     the order of 0.1 mm.
     """
-    time_mjd = convert_jd_to_mjd(uvh5file.time_array.mean())
+    # TODO: Test how different these are from the values in the uvh5 files
+    if reftime_mjd is None:
+        time_mjd = convert_jd_to_mjd(uvh5file.time_array)
+        ntimes = UV.Ntimes
+    else:
+        time_mjd = np.tile(reftime_mjd, (UV.Nbls))
+        ntimes = 1
+
     pt_dec = uvh5file.extra_keywords['phase_center_dec']*u.rad
     blen = calculate_blen(uvh5file)
+    nblts = UV.Nbls*ntimes
 
     uvw = calc_uvw_blt(
-        blen,
-        np.ones(uvh5file.Nbls)*time_mjd,
-        'HADEC', np.zeros(uvh5file.Nbls)*u.rad,
-        np.ones(uvh5file.Nbls)*pt_dec)
+        np.tile(blen, (ntimes, 1)).flatten(),
+        time_mjd,
+        'HADEC',
+        np.tile(0*u.rad, nblts),
+        np.tile(pt_dec, nblts))
 
-    uvw = np.tile(uvw[np.newaxis, :, :], (uvh5file.Ntimes, 1, 1)).reshape(uvh5file.Nblts, 3)
+    if reftime_mjd is not None:
+        uvw = np.tile(uvw[np.newaxis, :, :], (uvh5file.Ntimes, 1, 1)).reshape(uvh5file.Nblts, 3)
+
     # The calc_uvw_blt function returns uvw coordinates with UVData
     # sign convention.
     # We multiply this by -1 to match the CASA sign convention.
