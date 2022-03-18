@@ -8,7 +8,8 @@ from dsaT3.uvh5_to_ms import uvh5_to_ms
 from dsaT3.voltages_to_ms import *
 
 def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
-                   dispersion_measure: float=None, full_pol: bool=False, continuum_source: bool=False) -> None:
+                   dispersion_measure: float=None, full_pol: bool=False,
+                   continuum_source: bool=False) -> None:
     """
     Correlate voltage files and convert to a measurement set.
 

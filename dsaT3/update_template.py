@@ -77,7 +77,7 @@ LOGGER.app("dsacalib")
 
 def update_metadata(
         template_path: str, uvh5file: UVData, reftime_mjd: float, freq_array_Hz: np.ndarray=None,
-        fringstopped=False) -> None:
+        fringestopped=False) -> None:
     """Updates a template file with real metadata.
 
     Questions: Should we update the first two entries of the history table?
@@ -104,8 +104,8 @@ def get_pointing(uvh5file: UVData, obstime_mjd: float) -> tuple:
     ra_rad, dec_rad = pointing.J2000()
     return ra_rad, dec_rad
 
-def calculate_uvw(uvh5file: UVData, ra_rad: float, dec_rad: float, reftime_mjd: float, 
-    fringestopped=False) -> np.ndarray:
+def calculate_uvw(uvh5file: UVData, ra_rad: float, dec_rad: float, reftime_mjd: float,
+                  fringestopped=False) -> np.ndarray:
     """Calculate the uvw coordinates for a transit observation.
 
     The uvw array is calculated for the midpoint of the 2-s observation to

@@ -33,7 +33,7 @@ def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
     * We have the option to dedisperse.
     """
     use_template = template_path is not None
-    fringstop = ntbins is None # If we aren't cutting out times, we should fringestop
+    fringestop = ntbins is None # If we aren't cutting out times, we should fringestop
 
     if uvh5files is None:
         uvh5files = sorted(glob.glob(f'{UVH5DIR}{candname}_corr??.hdf5'))
@@ -62,8 +62,8 @@ def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
             if use_template:
 
                 if template_ms is None:
-                    update_metadata(f'{msname}.ms', UV, reftime_mjd=centre_time.mjd
-                        fringestopped=fringestop)
+                    update_metadata(
+                        f'{msname}.ms', UV, reftime_mjd=centre_time.mjd, fringestopped=fringestop)
                     template_ms = TemplateMSVis(
                         f'{msname}.ms', 16,
                         (UV.Nblts*UV.Nspws, UV.Nfreqs*len(uvh5files), UV.Npols))
