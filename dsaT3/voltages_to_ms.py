@@ -61,7 +61,7 @@ def generate_rsync_component(local: bool) -> "Callable":
 
 def generate_correlate_component(
         dispersion_measure: float, ntint: int, corr_ch0: dict, npol: int,
-        ncorrfiles: "Manager().Value", ncorrfiles_lock: "Manager().Lock") -> "Callable":
+        ncorrfiles: "Manager().Value") -> "Callable":
     """Generate a correlator function."""
 
     def correlate(vfile):
@@ -89,7 +89,7 @@ def generate_correlate_component(
 
         corrfile = '{0}.corr'.format(vfile)
 
-        with ncorrfiles_lock:
+        with ncorrfiles.get_lock():
             ncorrfiles.value += 1
 
         return corrfile
@@ -98,8 +98,7 @@ def generate_correlate_component(
 
 def generate_uvh5_component(
         candname: str, corrdir: str, declination: "Manager().Value", vis_params: dict,
-        start_offset: int, end_offset: int, ncorrfiles: "Manager().Value",
-        ncorrfiles_lock: "Manager().Lock") -> "Callable":
+        start_offset: int, end_offset: int, ncorrfiles: "Manager().Value") -> "Callable":
     """Generate a uvh5 writer."""
 
     def write_uvh5(corrfile):
@@ -114,7 +113,7 @@ def generate_uvh5_component(
         )
 
         os.remove(corrfile)
-        with ncorrfiles_lock:
+        with ncorrfiles.get_lock():
             ncorrfiles.value -= 1
 
     return write_uvh5
@@ -133,13 +132,12 @@ def process_join(targetfn):
     return inner
 
 def generate_declination_component(
-        declination: "Manager().Value", declination_lock: "Manager().Lock",
-        tstart: "astropy.time.Time") -> "Callable":
+        declination: "Manager().Value", tstart: "astropy.time.Time") -> "Callable":
     """Generate a pipeline component to get the declination from etcd."""
 
     def get_declination_etcd():
         """Look up the declination from etcd."""
-        with declination_lock:
+        with declination.get_lock():
             if declination.value is None:
                 declination.value = get_declination(
                     get_elevation(tstart)

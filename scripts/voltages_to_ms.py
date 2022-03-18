@@ -50,17 +50,17 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
 
     # Initialize the process manager, locks, values, and queues
     manager = Manager()
-    ncorrfiles = manager.Value('i', 0)
-    ncorrfiles_lock = manager.Lock()
-    declination = manager.Value(float, None)
-    declination_lock = manager.Lock()
+    ncorrfiles = manager.Value('i', lock=True)
+    ncorrfiles.value = 0
+    declination = manager.Value(float, lock=True)
+    declination.value = None
     rsync_queue = manager.Queue()
     corr_queue = manager.Queue()
     uvh5_queue = manager.Queue()
 
     # Generate the table needed by the correlator
     get_declination_etcd = process_join(generate_declination_component(
-        declination, declination_lock, cand.time))
+        declination, cand.time))
     _ = get_declination_etcd()
 
     generate_delay_table(uvh5params.visparams, corrparams.reftime, declination.value)
@@ -73,14 +73,14 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     correlate = pipeline_component(
         generate_correlate_component(
             cand.dm, corrparams.ntint, system_setup.corr_ch0_MHz,
-            corrparams.npol, ncorrfiles, ncorrfiles_lock),
+            corrparams.npol, ncorrfiles),
         corr_queue,
         uvh5_queue)
 
     write_uvh5 = pipeline_component(
         generate_uvh5_component(
             cand.name, system_setup.corrdir, declination, uvh5params.visparams,
-            start_offset, end_offset, ncorrfiles, ncorrfiles_lock),
+            start_offset, end_offset, ncorrfiles),
         uvh5_queue)
 
     processes = [
