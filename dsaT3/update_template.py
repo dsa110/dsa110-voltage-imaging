@@ -76,8 +76,8 @@ LOGGER.app("dsacalib")
 #                 print(f'Update {keyname} {key2}')
 
 def update_metadata(
-        template_path: str, uvh5file: UVData, freq_array_Hz: np.ndarray=None,
-        reftime_mjd: float=None) -> None:
+        template_path: str, uvh5file: UVData, reftime_mjd: float, freq_array_Hz: np.ndarray=None,
+        fringstopped=False) -> None:
     """Updates a template file with real metadata.
 
     Questions: Should we update the first two entries of the history table?
@@ -90,22 +90,22 @@ def update_metadata(
 
     template_ms.update_obstime(convert_jd_to_mjds(uvh5file.time_array))
 
-    uvw_m = calculate_uvw(uvh5file, reftime_mjd)
-    template_ms.update_uvw(uvw_m)
-
-    ra_rad, dec_rad = get_pointing(uvh5file)
+    ra_rad, dec_rad = get_pointing(uvh5file, reftime_mjd)
     template_ms.update_direction(ra_rad, dec_rad)
 
-def get_pointing(uvh5file: UVData) -> tuple:
+    uvw_m = calculate_uvw(uvh5file, ra_rad, dec_rad, reftime_mjd, fringestopped)
+    template_ms.update_uvw(uvw_m)
+
+def get_pointing(uvh5file: UVData, obstime_mjd: float) -> tuple:
     """Convert the pointing information stored in the uvh5file to J2000."""
-    obstime_mjd = Time(np.mean(uvh5file.time_array), format='jd').mjd
     pointing = pointing_direction(
         'HADEC', 0., uvh5file.extra_keywords['phase_center_dec'],
         obstime_mjd)
     ra_rad, dec_rad = pointing.J2000()
     return ra_rad, dec_rad
 
-def calculate_uvw(uvh5file: UVData, reftime_mjd: float=None) -> np.ndarray:
+def calculate_uvw(uvh5file: UVData, ra_rad: float, dec_rad: float, reftime_mjd: float, 
+    fringestopped=False) -> np.ndarray:
     """Calculate the uvw coordinates for a transit observation.
 
     The uvw array is calculated for the midpoint of the 2-s observation to
@@ -118,29 +118,26 @@ def calculate_uvw(uvh5file: UVData, reftime_mjd: float=None) -> np.ndarray:
     the order of 0.1 mm.
     """
     # TODO: Test how different these are from the values in the uvh5 files
-    if reftime_mjd is None:
+    if fringestopped:
         print('Calculating uvws for all times')
         time_mjd = convert_jd_to_mjd(uvh5file.time_array)
         ntimes = uvh5file.Ntimes
     else:
-        print(f'Calculating uvws for {time_mjd}')
+        print(f'Calculating uvws for {reftime_mjd}')
         time_mjd = np.tile(reftime_mjd, (uvh5file.Nbls))
         ntimes = 1
 
-    pt_dec = uvh5file.extra_keywords['phase_center_dec']*u.rad
     blen = calculate_blen(uvh5file)
     nblts = blen.shape[0]*ntimes
-
-    print(blen.shape, nblts, ntimes)
 
     uvw = calc_uvw_blt(
         np.tile(blen[np.newaxis, :, :], (ntimes, 1, 1)).reshape(nblts, 3),
         time_mjd,
-        'HADEC',
-        np.tile(0*u.rad, nblts),
-        np.tile(pt_dec, nblts))
+        'J2000',
+        np.tile(ra_rad*u.rad, nblts),
+        np.tile(dec_rad*u.rad, nblts))
 
-    if reftime_mjd is not None:
+    if not fringestopped:
         uvw = np.tile(uvw[np.newaxis, :, :], (uvh5file.Ntimes, 1, 1)).reshape(uvh5file.Nblts, 3)
 
     # The calc_uvw_blt function returns uvw coordinates with UVData

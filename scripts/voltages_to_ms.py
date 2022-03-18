@@ -48,66 +48,66 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     corrparams = initialize_correlator(full_pol, ntint, cand, system_setup)
     uvh5params = initialize_uvh5(corrparams, cand, system_setup)
 
-    # Initialize the process manager, locks, values, and queues
-    manager = Manager()
-    ncorrfiles = manager.Value('i', lock=True)
-    ncorrfiles.value = 0
-    declination = manager.Value(float, lock=True)
-    declination.value = None
-    rsync_queue = manager.Queue()
-    corr_queue = manager.Queue()
-    uvh5_queue = manager.Queue()
+    # # Initialize the process manager, locks, values, and queues
+    # manager = Manager()
+    # ncorrfiles = manager.Value('i', lock=True)
+    # ncorrfiles.value = 0
+    # declination = manager.Value(float, lock=True)
+    # declination.value = None
+    # rsync_queue = manager.Queue()
+    # corr_queue = manager.Queue()
+    # uvh5_queue = manager.Queue()
 
-    # Generate the table needed by the correlator
-    get_declination_etcd = process_join(generate_declination_component(
-        declination, cand.time))
-    _ = get_declination_etcd()
+    # # Generate the table needed by the correlator
+    # get_declination_etcd = process_join(generate_declination_component(
+    #     declination, cand.time))
+    # _ = get_declination_etcd()
 
-    generate_delay_table(uvh5params.visparams, corrparams.reftime, declination.value)
+    # generate_delay_table(uvh5params.visparams, corrparams.reftime, declination.value)
 
-    rsync_all_files = pipeline_component(
-        generate_rsync_component(cand.local),
-        rsync_queue,
-        corr_queue)
+    # rsync_all_files = pipeline_component(
+    #     generate_rsync_component(cand.local),
+    #     rsync_queue,
+    #     corr_queue)
 
-    correlate = pipeline_component(
-        generate_correlate_component(
-            cand.dm, corrparams.ntint, system_setup.corr_ch0_MHz,
-            corrparams.npol, ncorrfiles),
-        corr_queue,
-        uvh5_queue)
+    # correlate = pipeline_component(
+    #     generate_correlate_component(
+    #         cand.dm, corrparams.ntint, system_setup.corr_ch0_MHz,
+    #         corrparams.npol, ncorrfiles),
+    #     corr_queue,
+    #     uvh5_queue)
 
-    write_uvh5 = pipeline_component(
-        generate_uvh5_component(
-            cand.name, system_setup.corrdir, declination, uvh5params.visparams,
-            start_offset, end_offset, ncorrfiles),
-        uvh5_queue)
+    # write_uvh5 = pipeline_component(
+    #     generate_uvh5_component(
+    #         cand.name, system_setup.corrdir, declination, uvh5params.visparams,
+    #         start_offset, end_offset, ncorrfiles),
+    #     uvh5_queue)
 
-    processes = [
-        Process(target=rsync_all_files, daemon=True),
-        Process(target=correlate, daemon=True),
-        Process(target=write_uvh5, daemon=True)]
+    # processes = [
+    #     Process(target=rsync_all_files, daemon=True),
+    #     Process(target=correlate, daemon=True),
+    #     Process(target=write_uvh5, daemon=True)]
 
     # Populate rsync queue (the entry queue in our pipeline)
     # We only need to do this if the corresponding hdf5 file hasn't
     # been created already.
-    for i, filename in enumerate(cand.voltagefiles):
-        if not os.path.exists(uvh5params.files[i]):
-            rsync_queue.put([filename, corrparams.files[i]])
-    rsync_queue.put('END')
+    # for i, filename in enumerate(cand.voltagefiles):
+    #     if not os.path.exists(uvh5params.files[i]):
+    #         rsync_queue.put([filename, corrparams.files[i]])
+    # rsync_queue.put('END')
 
-    # Start all processes in the pipeline
-    for proc in processes:
-        proc.start()
+    # # Start all processes in the pipeline
+    # for proc in processes:
+    #     proc.start()
 
-    # Wait for all processes to finish
-    for proc in processes:
-        proc.join()
+    # # Wait for all processes to finish
+    # for proc in processes:
+    #     proc.join()
 
     # Convert uvh5 files to a measurement set
     msname = f'{system_setup.msdir}{candname}'
     ntbins = None if continuum_source else 8
-    uvh5_to_ms(cand.name, cand.time, uvh5params.files, msname, corrparams.reftime, ntbins)
+    uvh5_to_ms(cand.name, cand.time, uvh5params.files[0], msname, corrparams.reftime, ntbins)
 
     # Remove hdf5 files from disk
     # for hdf5file in uvh5params.files:
