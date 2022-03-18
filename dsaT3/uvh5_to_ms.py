@@ -33,6 +33,7 @@ def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
     * We have the option to dedisperse.
     """
     use_template = template_path is not None
+    fringstop = ntbins is None # If we aren't cutting out times, we should fringestop
 
     if uvh5files is None:
         uvh5files = sorted(glob.glob(f'{UVH5DIR}{candname}_corr??.hdf5'))
@@ -56,13 +57,13 @@ def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
             corr = re.findall('corr[0-9][0-9]', uvh5file)[0]
             UV, _pt_dec, ra, dec = load_uvh5_file(uvh5file, phase_time=centre_time)
             antenna_positions = set_antenna_positions(UV)
-            process_UV(UV, ra, dec, centre_time, ntbins)
+            process_UV(UV, ra, dec, centre_time, ntbins, fringestop)
 
             if use_template:
 
                 if template_ms is None:
-                    reftime_mjd = centre_time.mjd if ntbins is not None else None
-                    update_metadata(f'{msname}.ms', UV, reftime_mjd=reftime_mjd)
+                    update_metadata(f'{msname}.ms', UV, reftime_mjd=centre_time.mjd
+                        fringestopped=fringestop)
                     template_ms = TemplateMSVis(
                         f'{msname}.ms', 16,
                         (UV.Nblts*UV.Nspws, UV.Nfreqs*len(uvh5files), UV.Npols))
@@ -86,15 +87,15 @@ def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
 
         UV, _pt_dec, ra, dec = load_uvh5_file(uvh5files, phase_time=centre_time)
         antenna_positions = set_antenna_positions(UV)
-        process_UV(UV, ra, dec, centre_time, ntbins)
+        process_UV(UV, ra, dec, centre_time, ntbins, fringestop)
         write_UV_to_ms(UV, msname, antenna_positions)
 
-def process_UV(UV, ra, dec, centre_time, ntbins=None):
+def process_UV(UV, ra, dec, centre_time, ntbins, fringestop):
     """Phase, dedisperse and select times from UV file"""
 
     # TODO: reflect that the data are actually phased in the uvh5 files
 
-    if ntbins is None:
+    if fringestop:
         phase_visibilities(
             UV, ra, dec, fringestop=True, interpolate_uvws=False, refmjd=centre_time.mjd)
     else:
