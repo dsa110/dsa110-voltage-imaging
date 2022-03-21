@@ -89,9 +89,9 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
         Process(target=correlate, daemon=True),
         Process(target=write_uvh5, daemon=True)]
 
-    Populate rsync queue (the entry queue in our pipeline)
-    We only need to do this if the corresponding hdf5 file hasn't
-    been created already.
+    # Populate rsync queue (the entry queue in our pipeline)
+    # We only need to do this if the corresponding hdf5 file hasn't
+    # been created already.
     for i, filename in enumerate(cand.voltagefiles):
         if not os.path.exists(uvh5params.files[i]):
             rsync_queue.put([filename, corrparams.files[i]])
