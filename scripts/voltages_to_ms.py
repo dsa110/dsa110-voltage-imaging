@@ -108,7 +108,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     # Convert uvh5 files to a measurement set
     msname = f'{system_setup.msdir}{candname}'
     ntbins = None if continuum_source else 8
-    uvh5_to_ms(cand.name, cand.time, uvh5params.files[0], msname, corrparams.reftime, ntbins)
+    uvh5_to_ms(cand.name, cand.time, uvh5params.files, msname, corrparams.reftime, ntbins)
 
     # Remove hdf5 files from disk
     # for hdf5file in uvh5params.files:
