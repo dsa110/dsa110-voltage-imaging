@@ -4,6 +4,7 @@ from collections import namedtuple
 import time
 import re
 import os
+from functools import wraps
 import subprocess
 from multiprocessing import Process
 import queue
@@ -28,6 +29,7 @@ PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 
 def pipeline_component(targetfn, inqueue, outqueue=None):
     """Generate a component of the pipeline."""
+    @wraps(targetfn)
     def inner():
         """Process data from a queue."""
         done = False
@@ -37,12 +39,17 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
             except queue.Empty:
                 time.sleep(10)
                 continue
+            except EOFError:
+                print(f'EOFError when accessing inqueue in {targetfn.__name__}')
             if item == 'END':
                 done = True
             else:
                 item = targetfn(item)
-            if outqueue is not None:
-                outqueue.put(item)
+            try:
+                if outqueue is not None:
+                    outqueue.put(item)
+            except EOFError:
+                print(f'EOFError when accessing outqueue in {targetfn.__name__}')
     return inner
 
 def generate_rsync_component(local: bool) -> "Callable":
@@ -66,8 +73,11 @@ def generate_correlate_component(
 
     def correlate(vfile):
         """Correlate a file."""
-        if ncorrfiles.value > 2:
-            time.sleep(10)
+        try:
+            if ncorrfiles.value > 2:
+                time.sleep(10)
+        except EOFError:
+            print('EOFError when reading ncorrfiles from correlate')
 
         corr = re.findall('corr\d\d', vfile)[0]
         if not os.path.exists('{0}.corr'.format(vfile)):
@@ -89,8 +99,11 @@ def generate_correlate_component(
 
         corrfile = '{0}.corr'.format(vfile)
 
-        with ncorrfiles.get_lock():
-            ncorrfiles.value += 1
+        try:
+            with ncorrfiles.get_lock():
+                ncorrfiles.value += 1
+        except EOFError:
+            print('EOFError when writing to ncorrfiles from correlate')
 
         return corrfile
 
