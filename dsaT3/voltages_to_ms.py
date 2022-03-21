@@ -132,16 +132,15 @@ def process_join(targetfn):
     return inner
 
 def generate_declination_component(
-        declination: "Manager().Value", tstart: "astropy.time.Time") -> "Callable":
+        declination: "Value", tstart: "astropy.time.Time") -> "Callable":
     """Generate a pipeline component to get the declination from etcd."""
 
     def get_declination_etcd():
         """Look up the declination from etcd."""
-        with declination.get_lock():
-            if declination.value is None:
-                declination.value = get_declination(
-                    get_elevation(tstart)
-                ).to_value(u.deg)
+        declination.value = get_declination(
+            get_elevation(tstart)
+        ).to_value(u.deg)
+
     return get_declination_etcd
 
 def generate_delay_table(vis_params, reftime, declination):
