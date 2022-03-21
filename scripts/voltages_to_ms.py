@@ -60,6 +60,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     get_declination_etcd = process_join(generate_declination_component(
         declination, cand.time))
     _ = get_declination_etcd()
+    print(declination.value)
 
     generate_delay_table(uvh5params.visparams, corrparams.reftime, declination.value)
 
