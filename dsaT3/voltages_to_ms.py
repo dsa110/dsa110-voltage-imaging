@@ -39,8 +39,8 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
             except queue.Empty:
                 time.sleep(10)
                 continue
-            except EOFError:
-                print(f'EOFError when accessing inqueue in {targetfn.__name__}')
+            except (EOFError, BrokenPipeError) as exc:
+                print(f'Error when accessing inqueue in {targetfn.__name__}')
             if item == 'END':
                 done = True
             else:
@@ -48,8 +48,8 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
             try:
                 if outqueue is not None:
                     outqueue.put(item)
-            except EOFError:
-                print(f'EOFError when accessing outqueue in {targetfn.__name__}')
+            except (EOFError, BrokenPipeError) as exc:
+                print(f'Error when accessing outqueue in {targetfn.__name__}')
     return inner
 
 def generate_rsync_component(local: bool) -> "Callable":
@@ -76,8 +76,8 @@ def generate_correlate_component(
         try:
             if ncorrfiles.value > 2:
                 time.sleep(10)
-        except EOFError:
-            print('EOFError when reading ncorrfiles from correlate')
+        except (EOFError, BrokenPipeError) as exc:
+            print('Error when reading ncorrfiles from correlate')
 
         corr = re.findall('corr\d\d', vfile)[0]
         if not os.path.exists('{0}.corr'.format(vfile)):
@@ -102,8 +102,8 @@ def generate_correlate_component(
         try:
             with ncorrfiles.get_lock():
                 ncorrfiles.value += 1
-        except EOFError:
-            print('EOFError when writing to ncorrfiles from correlate')
+        except (EOFError, BrokenPipeError) as exc:
+            print('Error when writing to ncorrfiles from correlate')
 
         return corrfile
 
@@ -126,8 +126,11 @@ def generate_uvh5_component(
         )
 
         os.remove(corrfile)
-        with ncorrfiles.get_lock():
-            ncorrfiles.value -= 1
+        try:
+            with ncorrfiles.get_lock():
+                ncorrfiles.value -= 1
+        except (EOFError, BrokenPipeError) as exc:
+            print('Error when writing to ncorrfiles frome write_uvh5')
 
     return write_uvh5
 
