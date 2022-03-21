@@ -2,7 +2,7 @@
 Convert voltage files to measurement sets.
 """
 import os
-from multiprocessing import Process, Manager
+from multiprocessing import Process, Manager, Value
 import argparse
 from dsaT3.uvh5_to_ms import uvh5_to_ms
 from dsaT3.voltages_to_ms import *
@@ -50,8 +50,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
 
     # Initialize the process manager, locks, values, and queues
     manager = Manager()
-    ncorrfiles = manager.Value('i', 0, lock=True)
-    declination = manager.Value(float, None, lock=True)
+    ncorrfiles = Value('i', 0, lock=True)
+    declination = Value(float, None, lock=True)
     rsync_queue = manager.Queue()
     corr_queue = manager.Queue()
     uvh5_queue = manager.Queue()
