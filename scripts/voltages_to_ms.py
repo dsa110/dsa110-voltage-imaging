@@ -42,7 +42,6 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
 
     print(f'Continuum Source: {continuum_source}')
 
-
     start_offset, end_offset = set_default_if_unset(start_offset, end_offset)
     system_setup = initialize_system()
     cand = initialize_candidate(candname, datestring, system_setup, dispersion_measure)
@@ -51,10 +50,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
 
     # Initialize the process manager, locks, values, and queues
     manager = Manager()
-    ncorrfiles = manager.Value('i', lock=True)
-    ncorrfiles.value = 0
-    declination = manager.Value(float, lock=True)
-    declination.value = None
+    ncorrfiles = manager.Value('i', 0, lock=True)
+    declination = manager.Value(float, None, lock=True)
     rsync_queue = manager.Queue()
     corr_queue = manager.Queue()
     uvh5_queue = manager.Queue()
