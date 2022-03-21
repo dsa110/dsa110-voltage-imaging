@@ -51,7 +51,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     # Initialize the process manager, locks, values, and queues
     manager = Manager()
     ncorrfiles = Value('i', 0, lock=True)
-    declination = Value(float, None, lock=True)
+    declination = Value('f', -100., lock=True)
     rsync_queue = manager.Queue()
     corr_queue = manager.Queue()
     uvh5_queue = manager.Queue()
