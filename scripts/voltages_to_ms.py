@@ -61,7 +61,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
         declination, cand.time))
     _ = get_declination_etcd()
 
-    generate_delay_table(uvh5params.visparams, corrparams.reftime, declination.value)
+    generate_delay_table(uvh5params.visparams, get_reftime(), declination.value)
+    # generate_delay_table(uvh5params.visparams, corrparams.reftime, declination.value)
 
     rsync_all_files = pipeline_component(
         generate_rsync_component(cand.local),
@@ -118,6 +119,12 @@ def set_default_if_unset(start_offset: int, end_offset: int) -> tuple:
     if end_offset < 0:
         end_offset = None
     return start_offset, end_offset
+
+def get_reftime():
+    conf = dsc.Conf()
+    refmjd = conf.get('fringe')['refmjd']
+    reftime = Time(refmjd, format='mjd')
+    return reftime
 
 def parse_commandline_arguments() -> "argparse.Namespace":
     """Parse commandline arguments."""
