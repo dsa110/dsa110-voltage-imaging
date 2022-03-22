@@ -4,8 +4,10 @@ Convert voltage files to measurement sets.
 import os
 from multiprocessing import Process, Manager, Value
 import argparse
+import dsautils.cnf as dsc
 from dsaT3.uvh5_to_ms import uvh5_to_ms
 from dsaT3.voltages_to_ms import *
+
 
 def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
                    dispersion_measure: float=None, full_pol: bool=False,
