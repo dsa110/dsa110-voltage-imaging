@@ -96,7 +96,7 @@ def generate_correlate_component(
             proc_stdout = str(process.communicate()[0].strip())
             print(proc_stdout)
 
-        corrfile = '{0}.corr'.format(vfile)
+        corrfile = f'{vfile}.corr'
 
         with ncorrfiles.get_lock():
             ncorrfiles.value += 1
@@ -113,6 +113,7 @@ def generate_uvh5_component(
 
     def write_uvh5(corrfile):
         """Write correlated data to a uvh5 file."""
+        pritn(corrfile, type(corrfile))
         _uvh5name = generate_uvh5(
             f'{corrdir}/{candname}',
             declination.value*u.deg,
