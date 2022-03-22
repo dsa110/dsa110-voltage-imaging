@@ -41,6 +41,7 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
                 continue
             except (EOFError, BrokenPipeError) as exc:
                 print(f'Error when accessing inqueue in {targetfn.__name__}')
+                done = True
             if item == 'END':
                 done = True
             else:
@@ -50,6 +51,7 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
                     outqueue.put(item)
             except (EOFError, BrokenPipeError) as exc:
                 print(f'Error when accessing outqueue in {targetfn.__name__}')
+                done = True
     return inner
 
 def generate_rsync_component(local: bool) -> "Callable":
@@ -73,11 +75,8 @@ def generate_correlate_component(
 
     def correlate(vfile):
         """Correlate a file."""
-        try:
-            if ncorrfiles.value > 2:
+        while ncorrfiles.value > 2:
                 time.sleep(10)
-        except (EOFError, BrokenPipeError) as exc:
-            print('Error when reading ncorrfiles from correlate')
 
         corr = re.findall('corr\d\d', vfile)[0]
         if not os.path.exists('{0}.corr'.format(vfile)):
@@ -99,11 +98,9 @@ def generate_correlate_component(
 
         corrfile = '{0}.corr'.format(vfile)
 
-        try:
-            with ncorrfiles.get_lock():
-                ncorrfiles.value += 1
-        except (EOFError, BrokenPipeError) as exc:
-            print('Error when writing to ncorrfiles from correlate')
+        with ncorrfiles.get_lock():
+            ncorrfiles.value += 1
+
 
         return corrfile
 
