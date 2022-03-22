@@ -69,7 +69,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
 
     correlate = pipeline_component(
         generate_correlate_component(
-            corrparams.ntint, system_setup.corr_ch0_MHz,
+            cand.dm, corrparams.ntint, system_setup.corr_ch0_MHz,
             corrparams.npol, ncorrfiles),
         corr_queue,
         uvh5_queue)
