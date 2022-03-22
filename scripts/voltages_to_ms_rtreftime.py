@@ -2,7 +2,7 @@
 Convert voltage files to measurement sets.
 """
 import os
-from multiprocessing import Process, Manager
+from multiprocessing import Process, Manager, Value
 import argparse
 #from dsaT3.uvh5_to_ms import uvh5_to_ms
 from dsacalib.uvh5_to_ms import uvh5_to_ms
