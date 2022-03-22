@@ -113,7 +113,7 @@ def generate_uvh5_component(
 
     def write_uvh5(corrfile):
         """Write correlated data to a uvh5 file."""
-        pritn(corrfile, type(corrfile))
+        print(corrfile, type(corrfile))
         _uvh5name = generate_uvh5(
             f'{corrdir}/{candname}',
             declination.value*u.deg,
