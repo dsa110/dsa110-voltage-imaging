@@ -37,7 +37,7 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
             try:
                 item = inqueue.get()
                 assert item
-            except (queue.Empty, AssertionError) ax _:
+            except (queue.Empty, AssertionError) as _:
                 time.sleep(10)
                 continue
             except (EOFError, BrokenPipeError) as exc:
