@@ -49,6 +49,7 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
                 item = targetfn(item)
             try:
                 if outqueue is not None:
+                    print(f'{targetfn.__name__} sending {item} to queue')
                     outqueue.put(item)
             except (EOFError, BrokenPipeError) as exc:
                 print(f'Error when accessing outqueue in {targetfn.__name__}')
@@ -125,11 +126,8 @@ def generate_uvh5_component(
         )
 
         os.remove(corrfile)
-        try:
-            with ncorrfiles.get_lock():
-                ncorrfiles.value -= 1
-        except (EOFError, BrokenPipeError) as exc:
-            print('Error when writing to ncorrfiles frome write_uvh5')
+        with ncorrfiles.get_lock():
+            ncorrfiles.value -= 1
 
     return write_uvh5
 
