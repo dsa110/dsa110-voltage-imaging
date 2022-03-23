@@ -11,7 +11,10 @@ import dsautils.cnf as dsc
 from astropy.time import Time
 import astropy.units as u
 
-RA, DEC = 212.8359583333333*u.deg, 52.2025*u.deg
+# 3C147
+RA, DEC =  85.650625*u.deg, 49.85213889*u.deg
+# 3C295
+# RA, DEC = 212.8359583333333*u.deg, 52.2025*u.deg
 
 def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
                    full_pol: bool=False) -> None:
