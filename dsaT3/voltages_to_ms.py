@@ -36,7 +36,8 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
         while not done:
             try:
                 item = inqueue.get()
-            except queue.Empty:
+                assert item
+            except (queue.Empty, AssertionError) ax _:
                 time.sleep(10)
                 continue
             except (EOFError, BrokenPipeError) as exc:
@@ -76,7 +77,7 @@ def generate_correlate_component(
     def correlate(vfile):
         """Correlate a file."""
         while ncorrfiles.value > 2:
-                time.sleep(10)
+            time.sleep(10)
 
         corr = re.findall('corr\d\d', vfile)[0]
         if not os.path.exists('{0}.corr'.format(vfile)):
