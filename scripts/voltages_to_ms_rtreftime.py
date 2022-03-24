@@ -2,7 +2,7 @@
 Convert voltage files to measurement sets.
 """
 import os
-from multiprocessing import Process, Value, Queue
+from multiprocessing import Process, Value, JoinableQueue
 import argparse
 #from dsaT3.uvh5_to_ms import uvh5_to_ms
 from dsacalib.uvh5_to_ms import uvh5_to_ms
@@ -54,9 +54,9 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     # Initialize the process manager, locks, values, and queues
     ncorrfiles = Value('i', 0, lock=True)
     declination = Value('f', -100., lock=True)
-    rsync_queue = Queue()
-    corr_queue = Queue()
-    uvh5_queue = Queue()
+    rsync_queue = JoinableQueue()
+    corr_queue = JoinableQueue()
+    uvh5_queue = JoinableQueue()
 
     # Generate the table needed by the correlator
     get_declination_etcd = process_join(generate_declination_component(
@@ -96,8 +96,6 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
         if not os.path.exists(uvh5params.files[i]):
             rsync_queue.put([filename, corrparams.files[i]])
     rsync_queue.put('END')
-    rsync_queue.close()
-    rsync_queue.join_thread()
 
     # Start all processes in the pipeline
     for proc in processes:
