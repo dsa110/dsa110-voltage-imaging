@@ -35,14 +35,15 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
         done = False
         while not done:
             try:
-                item = inqueue.get()
+                item = inqueue.get(timeout=2)
                 assert item
-            except (queue.Empty, AssertionError) as _:
+            except queue.Empty:
                 time.sleep(10)
                 continue
             except (EOFError, BrokenPipeError) as exc:
-                print(f'Error when accessing inqueue in {targetfn.__name__}')
+                print(f'{exc.__name__} error when accessing inqueue in {targetfn.__name__}')
                 done = True
+                continue
             if item == 'END':
                 done = True
             else:
