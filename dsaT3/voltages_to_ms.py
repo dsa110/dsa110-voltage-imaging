@@ -41,7 +41,7 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
                 time.sleep(10)
                 continue
             except (EOFError, BrokenPipeError) as exc:
-                print(f'Error when accessing inqueue in {targetfn.__name__}')
+                print(f'{exc.__name__} error when accessing inqueue in {targetfn.__name__}')
                 done = True
             if item == 'END':
                 done = True
@@ -54,6 +54,9 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
             except (EOFError, BrokenPipeError) as exc:
                 print(f'Error when accessing outqueue in {targetfn.__name__}')
                 done = True
+        outqueue.close()
+        outqueue.join_thread()
+
     return inner
 
 def generate_rsync_component(local: bool) -> "Callable":
