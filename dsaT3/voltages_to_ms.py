@@ -55,8 +55,9 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
             except (EOFError, BrokenPipeError) as exc:
                 print(f'{type(exc).__name__} error when accessing outqueue in {targetfn.__name__}')
                 done = True
-        outqueue.close()
-        outqueue.join_thread()
+            inqueue.task_done()
+        inqueue.join() # Make sure all items are processed
+        time.sleep(1) # Make sure all items make it to outqueue
 
     return inner
 
