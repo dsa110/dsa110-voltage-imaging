@@ -97,6 +97,8 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
         if not os.path.exists(uvh5params.files[i]):
             rsync_queue.put([filename, corrparams.files[i]])
     rsync_queue.put('END')
+    rsync_queue.close()
+    rsync_queue.join_thread()
 
     # Start all processes in the pipeline
     for proc in processes:
