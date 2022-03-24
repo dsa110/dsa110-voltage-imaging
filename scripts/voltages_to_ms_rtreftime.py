@@ -48,7 +48,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
 
     start_offset, end_offset = set_default_if_unset(start_offset, end_offset)
     system_setup = initialize_system()
-    cand = initialize_candidate(candname, datestring, system_setup)
+    cand = initialize_candidate(candname, datestring, system_setup, dispersion_measure)
     corrparams = initialize_correlator(full_pol, ntint, cand, system_setup)
     uvh5params = initialize_uvh5(corrparams, cand, system_setup)
 
