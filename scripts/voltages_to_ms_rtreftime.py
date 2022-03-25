@@ -134,7 +134,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     #     cand.name, cand.time, uvh5params.files, msname, corrparams.reftime, ntbins)
 
     # # For testing with the real-time writer
-    msname = f'{system_setup.msdir}{candname}_RT'
+    msname = f'{system_setup.msdir}{candname}_RT_nodelay'
     uvh5_to_ms(uvh5params.files, msname, ra=RA , dec=DEC ,refmjd=corrparams.reftime.mjd)
 
     # # Remove hdf5 files from disk
@@ -149,7 +149,7 @@ def set_default_if_unset(start_offset: int, end_offset: int) -> tuple:
         end_offset = None
     return start_offset, end_offset
 
-def get_reftime():
+def get_reftime() -> "Time":
     """Get the reference time used in the real-time correlator."""
     conf = dsc.Conf()
     refmjd = conf.get('fringe')['refmjd']
