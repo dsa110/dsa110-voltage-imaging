@@ -247,7 +247,7 @@ def initialize_vis_params(corrparams, cand, outrigger_delays=None):
     T3params = load_params(PARAMFILE)
     if outrigger_delays:
         T3params['outrigger_delays'] = outrigger_delays
-    vis_params = parse_visibility_parameters(T3params, cand.time, corrparams.ntint, outrigger_delays)
+    vis_params = parse_visibility_parameters(T3params, cand.time, corrparams.ntint)
     vis_params['tref'] = corrparams.reftime
     vis_params['npol'] = corrparams.npol
     vis_params['nfint'] = corrparams.nfint
