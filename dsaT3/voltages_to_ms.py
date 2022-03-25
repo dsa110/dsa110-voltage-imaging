@@ -176,7 +176,7 @@ def generate_delay_table(vis_params, reftime, declination):
         vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'],
         vis_params['antenna_order'])
     # TODO: Remove this!
-    total_delay = np.zeros(today_delay.shape, total_delay.dtype)
+    total_delay = np.zeros(total_delay.shape, total_delay.dtype)
     total_delay_string = '\n'.join(total_delay.flatten().astype('str'))+'\n'
     with open("delays.dat", "w", encoding='utf-8') as f:
         f.write(total_delay_string)
