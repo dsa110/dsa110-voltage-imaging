@@ -4,17 +4,18 @@ Convert voltage files to measurement sets.
 import os
 from multiprocessing import Process, Value, JoinableQueue
 import argparse
-from dsaT3.uvh5_to_ms import uvh5_to_ms
-# from dsacalib.uvh5_to_ms import uvh5_to_ms
+# from dsaT3.uvh5_to_ms import uvh5_to_ms
+from dsacalib.uvh5_to_ms import uvh5_to_ms
 from dsaT3.voltages_to_ms import *
 import dsautils.cnf as dsc
 from astropy.time import Time
 import astropy.units as u
 
+# For testing with real-time ms writer:
 # 3C147
 # RA, DEC =  85.650625*u.deg, 49.85213889*u.deg
 # 3C295
-# RA, DEC = 212.8359583333333*u.deg, 52.2025*u.deg
+RA, DEC = 212.8359583333333*u.deg, 52.2025*u.deg
 # 3C196
 # RA, DEC = 123.40029167*u.deg, 48.21719444*u.deg
 
@@ -50,7 +51,27 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     system_setup = initialize_system()
     cand = initialize_candidate(candname, datestring, system_setup, dispersion_measure)
     corrparams = initialize_correlator(full_pol, ntint, cand, system_setup)
-    uvh5params = initialize_uvh5(corrparams, cand, system_setup)
+    outrigger_delays = {
+       100:  1256,
+       101:  1106,
+       102:  1054,
+       103:  -212,
+       104:  2129,
+       105: 11992,
+       106:  8676,
+       107:  9498,
+       108: 10310,
+       109: 11438,
+       110: 15450,
+       111: 14414,
+       112: 15158,
+       113: 16622,
+       114: 18742,
+       115: 20298,
+       116:  3676,
+       117:  4376,
+    }
+    uvh5params = initialize_uvh5(corrparams, cand, system_setup, outrigger_delays)
 
     # Initialize the process manager, locks, values, and queues
     ncorrfiles = Value('i', 0, lock=True)
@@ -107,12 +128,14 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
         proc.join()
 
     # # Convert uvh5 files to a measurement set
-    msname = f'{system_setup.msdir}{candname}'
-    ntbins = None if continuum_source else 8
-    uvh5_to_ms(
-        cand.name, cand.time, uvh5params.files, msname, corrparams.reftime, ntbins)
-    #msname = f'{system_setup.msdir}{candname}_RT_nodelays'
-    #uvh5_to_ms(uvh5params.files, msname, ra=RA , dec=DEC ,refmjd=corrparams.reftime.mjd)
+    # msname = f'{system_setup.msdir}{candname}'
+    # ntbins = None if continuum_source else 8
+    # uvh5_to_ms(
+    #     cand.name, cand.time, uvh5params.files, msname, corrparams.reftime, ntbins)
+
+    # # For testing with the real-time writer
+    msname = f'{system_setup.msdir}{candname}_RT'
+    uvh5_to_ms(uvh5params.files, msname, ra=RA , dec=DEC ,refmjd=corrparams.reftime.mjd)
 
     # # Remove hdf5 files from disk
     # for hdf5file in uvh5params.files:
@@ -127,6 +150,7 @@ def set_default_if_unset(start_offset: int, end_offset: int) -> tuple:
     return start_offset, end_offset
 
 def get_reftime():
+    """Get the reference time used in the real-time correlator."""
     conf = dsc.Conf()
     refmjd = conf.get('fringe')['refmjd']
     reftime = Time(refmjd, format='mjd')

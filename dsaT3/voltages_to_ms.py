@@ -34,6 +34,7 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
         """Process data from a queue."""
         done = False
         while not done:
+            # Get the next item
             try:
                 item = inqueue.get(timeout=2)
                 assert item
@@ -41,20 +42,27 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
                 time.sleep(10)
                 continue
             except (EOFError, BrokenPipeError) as exc:
+                # Log and end gracefully if the queue is broken
                 print(f'{type(exc).__name__} error when accessing inqueue in {targetfn.__name__}')
                 done = True
                 continue
+
+            # Process the item
             if item == 'END':
                 done = True
             else:
                 item = targetfn(item)
-            try:
-                if outqueue is not None:
+
+            # Pass the item on to the next queue
+            if outqueue is not None:
+                try:
                     print(f'{targetfn.__name__} sending {item} to queue')
                     outqueue.put(item)
-            except (EOFError, BrokenPipeError) as exc:
-                print(f'{type(exc).__name__} error when accessing outqueue in {targetfn.__name__}')
-                done = True
+                except (EOFError, BrokenPipeError) as exc:
+                    # Log and end gracefully if the queue is broken
+                    print(f'{type(exc).__name__} error when accessing outqueue in {targetfn.__name__}')
+                    done = True
+
             inqueue.task_done()
         inqueue.join() # Make sure all items are processed
         time.sleep(1) # Make sure all items make it to outqueue
@@ -224,27 +232,30 @@ def initialize_correlator(fullpol, ntint, cand, system_setup):
     correlator_params = CorrelatorParameters(reftime, npol, nfint, ntint, corrfiles)
     return correlator_params
 
-def initialize_uvh5(corrparams, cand, system_setup):
+def initialize_uvh5(corrparams, cand, system_setup, outrigger_delays=None):
     """Set parameters for writing uvh5 files."""
     corrlist = list(system_setup.corr_ch0_MHz.keys())
     uvh5files = [f'{system_setup.corrdir}/{cand.name}_{corr}.hdf5' for corr in corrlist]
-    visparams = initialize_vis_params(corrparams, cand)
+    visparams = initialize_vis_params(corrparams, cand, outrigger_delays)
 
     UVH5Parameters = namedtuple('UVH5', 'files visparams')
     uvh5_params = UVH5Parameters(uvh5files, visparams)
     return uvh5_params
 
-def initialize_vis_params(corrparams, cand):
+def initialize_vis_params(corrparams, cand, outrigger_delays=None):
     """Set parameters that describe the visbilities produced by the correlator."""
     T3params = load_params(PARAMFILE)
-    vis_params = parse_visibility_parameters(T3params, cand.time, corrparams.ntint)
+    if outrigger_delays:
+        T3params['outrigger_delays'] = outrigger_delays
+    vis_params = parse_visibility_parameters(T3params, cand.time, corrparams.ntint, outrigger_delays)
     vis_params['tref'] = corrparams.reftime
     vis_params['npol'] = corrparams.npol
     vis_params['nfint'] = corrparams.nfint
     vis_params['ntint'] = corrparams.ntint
     return vis_params
 
-def parse_visibility_parameters(params: dict, tstart: 'astropy.time.Time', ntint: int) -> dict:
+def parse_visibility_parameters(
+        params: dict, tstart: 'astropy.time.Time', ntint: int) -> dict:
     """Parse details about the data to be extracted.
 
     Parameters
