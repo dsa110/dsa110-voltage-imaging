@@ -13,9 +13,9 @@ import astropy.units as u
 
 # For testing with real-time ms writer:
 # 3C147
-# RA, DEC =  85.650625*u.deg, 49.85213889*u.deg
+RA, DEC =  85.650625*u.deg, 49.85213889*u.deg
 # 3C295
-RA, DEC = 212.8359583333333*u.deg, 52.2025*u.deg
+# RA, DEC = 212.8359583333333*u.deg, 52.2025*u.deg
 # 3C196
 # RA, DEC = 123.40029167*u.deg, 48.21719444*u.deg
 
