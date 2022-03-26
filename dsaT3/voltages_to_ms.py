@@ -99,7 +99,8 @@ def generate_correlate_component(
             command = (
                 '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit_dev '
                 f'-i {vfile} -o {vfile}.corr -t {ntint} -c {first_channel_MHz} '
-                f'-d delays.dat {"" if npol==4 else "-a"}')
+                f'-d delays.dat {"" if npol==4 else "-a"} '
+                f'-b 127')
             if dispersion_measure is not None:
                 command += f' -m {dispersion_measure}'
             print(command)
@@ -176,7 +177,7 @@ def generate_delay_table(vis_params, reftime, declination):
         vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'],
         vis_params['antenna_order'])
     # TODO: Remove this!
-    total_delay = np.zeros(total_delay.shape, total_delay.dtype)
+    # total_delay = np.zeros(total_delay.shape, total_delay.dtype)
     total_delay_string = '\n'.join(total_delay.flatten().astype('str'))+'\n'
     with open("delays.dat", "w", encoding='utf-8') as f:
         f.write(total_delay_string)

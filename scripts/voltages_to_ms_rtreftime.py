@@ -134,7 +134,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     #     cand.name, cand.time, uvh5params.files, msname, corrparams.reftime, ntbins)
 
     # # For testing with the real-time writer
-    msname = f'{system_setup.msdir}{candname}_RT_nodelay'
+    msname = f'{system_setup.msdir}{candname}_RT_b127'
     uvh5_to_ms(uvh5params.files, msname, ra=RA , dec=DEC ,refmjd=corrparams.reftime.mjd)
 
     # # Remove hdf5 files from disk
