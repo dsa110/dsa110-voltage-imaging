@@ -4,8 +4,8 @@ Convert voltage files to measurement sets.
 import os
 from multiprocessing import Process, Value, JoinableQueue
 import argparse
-# from dsaT3.uvh5_to_ms import uvh5_to_ms
-from dsacalib.uvh5_to_ms import uvh5_to_ms
+from dsaT3.uvh5_to_ms import uvh5_to_ms
+# from dsacalib.uvh5_to_ms import uvh5_to_ms
 from dsaT3.voltages_to_ms import *
 import dsautils.cnf as dsc
 from astropy.time import Time
