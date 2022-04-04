@@ -24,16 +24,16 @@ DAY_TO_MS = 86400000.0
 DAY_TO_S = DAY_TO_MS/1e3
 REF_FREQ_GHZ = 1.530
 
-def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
-               centre_time=None, ntbins=8, template_path=TEMPLATE, singlems=False):
+def uvh5_to_ms(
+    candname, candtime, uvh5files=None, msname=None, centre_time=None, template_path=TEMPLATE):
     """Convert uvh5 to ms.
 
     This mostly follows the method used in the real-time system with some differences:
     * We need to account for removing geometric delays to the start of the observation.
     * We have the option to dedisperse.
+
+    If template_path is None, then a single ms is written.
     """
-    use_template = template_path is not None
-    fringestop = ntbins is None # If we aren't cutting out times, we should fringestop
 
     if uvh5files is None:
         uvh5files = sorted(glob.glob(f'{UVH5DIR}{candname}_corr??.hdf5'))
@@ -47,11 +47,10 @@ def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
     if os.path.exists(f'{msname}.ms'):
         shutil.rmtree(f'{msname}.ms')
 
-    if (not singlems) or use_template:
+    if template_path:
 
-        if use_template:
-            tablecopy(template_path, f'{msname}.ms', deep=True)
-            template_ms = None
+        tablecopy(template_path, f'{msname}.ms', deep=True)
+        template_ms = None
 
         for uvh5file in uvh5files:
             corr = re.findall('corr[0-9][0-9]', uvh5file)[0]
@@ -59,29 +58,16 @@ def uvh5_to_ms(candname, candtime, uvh5files=None, msname=None,
             antenna_positions = set_antenna_positions(UV)
             process_UV(UV, ra, dec, centre_time, ntbins, fringestop)
 
-            if use_template:
+            if template_ms is None:
+                update_metadata(
+                    f'{msname}.ms', UV, reftime_mjd=centre_time.mjd, fringestopped=True)
+                template_ms = TemplateMSVis(
+                    f'{msname}.ms', 16,
+                    (UV.Nblts*UV.Nspws, UV.Nfreqs*len(uvh5files), UV.Npols))
 
-                if template_ms is None:
-                    update_metadata(
-                        f'{msname}.ms', UV, reftime_mjd=centre_time.mjd, fringestopped=fringestop)
-                    template_ms = TemplateMSVis(
-                        f'{msname}.ms', 16,
-                        (UV.Nblts*UV.Nspws, UV.Nfreqs*len(uvh5files), UV.Npols))
+             template_ms.update_vis_and_flags(UV)
 
-                template_ms.update_vis_and_flags(UV)
-
-            else:
-
-                write_UV_to_ms(UV, f'{msname}_{corr}', antenna_positions)
-
-        if use_template:
-
-            template_ms.write_vis_and_flags()
-
-        else:
-
-            msnames = sorted(glob.glob(f'{msname}_corr??.ms'), reverse=True)
-            virtualconcat(msnames, f'{msname}.ms')
+        template_ms.write_vis_and_flags()
 
     else:
 
@@ -95,15 +81,8 @@ def process_UV(UV, ra, dec, centre_time, ntbins, fringestop):
 
     # TODO: reflect that the data are actually phased in the uvh5 files
 
-    if fringestop:
-        phase_visibilities(
-            UV, ra, dec, fringestop=True, interpolate_uvws=False, refmjd=centre_time.mjd)
-    else:
-        phase_visibilities(
-            UV, ra, dec, fringestop=False, interpolate_uvws=True, refmjd=centre_time.mjd)
-
-    if ntbins is not None:
-        select_times_UV(UV, centre_time, ntbins)
+    phase_visibilities(
+        UV, ra, dec, fringestop=True, interpolate_uvws=False, refmjd=centre_time.mjd)
 
     fix_descending_missing_freqs(UV)
 
