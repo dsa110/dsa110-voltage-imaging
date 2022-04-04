@@ -13,15 +13,14 @@ import astropy.units as u
 
 # For testing with real-time ms writer:
 # 3C147
-RA, DEC =  85.650625*u.deg, 49.85213889*u.deg
+# RA, DEC =  85.650625*u.deg, 49.85213889*u.deg
 # 3C295
 # RA, DEC = 212.8359583333333*u.deg, 52.2025*u.deg
 # 3C196
 # RA, DEC = 123.40029167*u.deg, 48.21719444*u.deg
 
 def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
-                   dispersion_measure: float=None, full_pol: bool=False,
-                   continuum_source: bool=False) -> None:
+                   dispersion_measure: float=None) -> None:
     """
     Correlate voltage files and convert to a measurement set.
 
@@ -127,15 +126,10 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     for proc in processes:
         proc.join()
 
-    # # Convert uvh5 files to a measurement set
+    # Convert uvh5 files to a measurement set
     msname = f'{system_setup.msdir}{candname}'
-    ntbins = None if continuum_source else 8
     uvh5_to_ms(
-     cand.name, cand.time, uvh5params.files, msname, corrparams.reftime, ntbins)
-
-    # # For testing with the real-time writer
-    # msname = f'{system_setup.msdir}{candname}_RT'
-    # uvh5_to_ms(uvh5params.files, msname, ra=RA , dec=DEC ,refmjd=corrparams.reftime.mjd)
+     cand.name, cand.time, uvh5params.files, msname, corrparams.reftime, ntbins=None)
 
     # # Remove hdf5 files from disk
     # for hdf5file in uvh5params.files:
@@ -193,8 +187,6 @@ def parse_commandline_arguments() -> "argparse.Namespace":
         type=float,
         nargs='?',
         help='dispersion measure to use instead of value in header file')
-    parser.add_argument('--continuum', action='store_true')
-    parser.set_defaults(continuum=False)
 
     args = parser.parse_args()
     return args
@@ -203,4 +195,4 @@ if __name__ == '__main__':
     ARGS = parse_commandline_arguments()
     voltages_to_ms(ARGS.candname, ARGS.datestring, ntint=ARGS.ntint,
                    start_offset=ARGS.startoffset, end_offset=ARGS.stopoffset,
-                   dispersion_measure=ARGS.dm, continuum_source=ARGS.continuum)
+                   dispersion_measure=ARGS.dm)
