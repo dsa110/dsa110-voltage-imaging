@@ -20,7 +20,7 @@ import astropy.units as u
 # RA, DEC = 123.40029167*u.deg, 48.21719444*u.deg
 
 def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
-                   dispersion_measure: float=None) -> None:
+                   dispersion_measure: float=None, full_pol=False) -> None:
     """
     Correlate voltage files and convert to a measurement set.
 
