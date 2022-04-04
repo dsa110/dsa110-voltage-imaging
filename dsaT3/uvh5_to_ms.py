@@ -65,7 +65,7 @@ def uvh5_to_ms(
                     f'{msname}.ms', 16,
                     (UV.Nblts*UV.Nspws, UV.Nfreqs*len(uvh5files), UV.Npols))
 
-             template_ms.update_vis_and_flags(UV)
+            template_ms.update_vis_and_flags(UV)
 
         template_ms.write_vis_and_flags()
 
