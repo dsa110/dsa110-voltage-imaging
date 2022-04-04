@@ -181,7 +181,7 @@ def parse_commandline_arguments() -> "argparse.Namespace":
         '--stopoffset',
         type=int,
         nargs='?',
-        default=4788,
+        default=1748,
         help='number of bins from end of correlation to write to ms')
     parser.add_argument(
         '--dm',
