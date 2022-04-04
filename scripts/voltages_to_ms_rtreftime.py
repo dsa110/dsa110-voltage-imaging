@@ -130,7 +130,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
     msname = f'{system_setup.msdir}{candname}'
     uvh5_to_ms(
         cand.name, cand.time, uvh5params.files, msname, corrparams.reftime, ntbins=None,
-        template=None, singlems=True)
+        template_path=None, singlems=True)
 
     # # Remove hdf5 files from disk
     # for hdf5file in uvh5params.files:
