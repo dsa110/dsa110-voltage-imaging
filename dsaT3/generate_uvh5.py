@@ -11,8 +11,9 @@ from dsamfs.io import initialize_uvh5_file, update_uvh5_file
 from dsacalib.fringestopping import calc_uvw, calc_uvw_interpolate
 import dsacalib.constants as ct
 
-def generate_uvh5(name: str, pt_dec: "astropy.Quantity", corrfile: str, vis_params: dict,
-                  start_offset: int=None, end_offset: int=None) -> str:
+def generate_uvh5(
+        name: str, pt_dec: "astropy.Quantity", corrfile: str, vis_params: dict,
+        start_offset: int = None, end_offset: int = None) -> str:
     """Generates a measurement set from the T3 correlations.
 
     Parameters
@@ -90,7 +91,9 @@ def generate_uvh5(name: str, pt_dec: "astropy.Quantity", corrfile: str, vis_para
 
             for i in tqdm.tqdm(range(size_params['nblocks'])):
                 # Define the time that we are reading in for this block
-                block_tidxs = slice(i*size_params['framespblock'], (i+1)*size_params['framespblock'])
+                block_tidxs = slice(
+                    i*size_params['framespblock'],
+                    (i+1)*size_params['framespblock'])
                 tobs_block = tobs[block_tidxs]
                 buvw_block = buvw[block_tidxs, ...]
 
@@ -152,7 +155,7 @@ def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int) 
 
 def calculate_uvw_and_geodelay(
         vis_params: dict, tobs: np.ndarray, pt_dec: float,
-        interpolate_uvws: bool=True) -> tuple:
+        interpolate_uvws: bool = True) -> tuple:
     """Calculate the uvw coordinates in the correlated file.
 
     Parameters

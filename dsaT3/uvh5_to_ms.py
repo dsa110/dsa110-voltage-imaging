@@ -8,7 +8,6 @@ import numpy as np
 import astropy.units as u
 from astropy.time import Time
 from casacore.tables import tablecopy
-from casatasks import virtualconcat
 from dsacalib.uvh5_to_ms import load_uvh5_file, set_antenna_positions, phase_visibilities
 from dsacalib.uvh5_to_ms import fix_descending_missing_freqs, write_UV_to_ms
 from dsaT3.update_template import update_metadata, TemplateMSVis
@@ -25,7 +24,7 @@ DAY_TO_S = DAY_TO_MS/1e3
 REF_FREQ_GHZ = 1.530
 
 def uvh5_to_ms(
-    candname, candtime, uvh5files=None, msname=None, centre_time=None, template_path=TEMPLATE):
+        candname, candtime, uvh5files=None, msname=None, centre_time=None, template_path=TEMPLATE):
     """Convert uvh5 to ms.
 
     This mostly follows the method used in the real-time system with some differences:
@@ -53,10 +52,9 @@ def uvh5_to_ms(
         template_ms = None
 
         for uvh5file in uvh5files:
-            corr = re.findall('corr[0-9][0-9]', uvh5file)[0]
             UV, _pt_dec, ra, dec = load_uvh5_file(uvh5file, phase_time=centre_time)
             antenna_positions = set_antenna_positions(UV)
-            process_UV(UV, ra, dec, centre_time, ntbins, fringestop)
+            process_UV(UV, ra, dec, centre_time)
 
             if template_ms is None:
                 update_metadata(
@@ -73,10 +71,10 @@ def uvh5_to_ms(
 
         UV, _pt_dec, ra, dec = load_uvh5_file(uvh5files, phase_time=centre_time)
         antenna_positions = set_antenna_positions(UV)
-        process_UV(UV, ra, dec, centre_time, ntbins, fringestop)
+        process_UV(UV, ra, dec, centre_time)
         write_UV_to_ms(UV, msname, antenna_positions)
 
-def process_UV(UV, ra, dec, centre_time, ntbins, fringestop):
+def process_UV(UV, ra, dec, centre_time):
     """Phase, dedisperse and select times from UV file"""
 
     # TODO: reflect that the data are actually phased in the uvh5 files

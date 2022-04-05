@@ -9,7 +9,7 @@ import astropy.units as u
 from dsamfs.fringestopping import calc_uvw_blt
 import dsautils.dsa_syslog as dsl
 from dsaT3.utils import load_params
-from dsacalib.utils import direction as pointing_direction
+from dsacalib.utils import Direction
 
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 PARAMS = load_params(PARAMFILE)
@@ -76,7 +76,7 @@ LOGGER.app("dsacalib")
 #                 print(f'Update {keyname} {key2}')
 
 def update_metadata(
-        template_path: str, uvh5file: UVData, reftime_mjd: float, freq_array_Hz: np.ndarray=None,
+        template_path: str, uvh5file: UVData, reftime_mjd: float, freq_array_Hz: np.ndarray = None,
         fringestopped=False) -> None:
     """Updates a template file with real metadata.
 
@@ -98,7 +98,7 @@ def update_metadata(
 
 def get_pointing(uvh5file: UVData, obstime_mjd: float) -> tuple:
     """Convert the pointing information stored in the uvh5file to J2000."""
-    pointing = pointing_direction(
+    pointing = Direction(
         'HADEC', 0., uvh5file.extra_keywords['phase_center_dec'],
         obstime_mjd)
     ra_rad, dec_rad = pointing.J2000()

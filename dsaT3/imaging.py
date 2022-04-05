@@ -153,7 +153,7 @@ def read_bfweights(bfweights, bfdir):
 
     return antenna_order, gains
 
-def calibrate_T3ms_percorrnode(msnames: dict, bfweights: str, bfdir: str='/data/dsa110/T3/calibs/'):
+def calibrate_T3ms_percorrnode(msnames: dict, bfweights: str, bfdir: str = '/data/dsa110/T3/calibs/'):
     """Calibrates a measurement set using the beamformer weights.
 
     Calibrated data is written into the CORRECTED_DATA column.
@@ -174,7 +174,7 @@ def calibrate_T3ms_percorrnode(msnames: dict, bfweights: str, bfdir: str='/data/
         corridx = CORR_ORDER.index(int(corrnode.strip('corr')))
         apply_calibration(msname, gains[:, corridx, :, :], antenna_order)
 
-def calibrate_T3ms(msname, bfweights, bfdir: str='/data/dsa110/T3/calibs/'):
+def calibrate_T3ms(msname, bfweights, bfdir: str = '/data/dsa110/T3/calibs/'):
     """Calibrates a measurement set using the beamformer weights.
 
     Calibrated data is written into the CORRECTED_DATA column.

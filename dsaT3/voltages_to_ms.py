@@ -60,7 +60,9 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
                     outqueue.put(item)
                 except (EOFError, BrokenPipeError) as exc:
                     # Log and end gracefully if the queue is broken
-                    print(f'{type(exc).__name__} error when accessing outqueue in {targetfn.__name__}')
+                    print(
+                        f'{type(exc).__name__} error when accessing outqueue '
+                        f'in {targetfn.__name__}')
                     done = True
 
             inqueue.task_done()
@@ -93,7 +95,7 @@ def generate_correlate_component(
         while ncorrfiles.value > 2:
             time.sleep(10)
 
-        corr = re.findall('corr\d\d', vfile)[0]
+        corr = re.findall(r'corr\d\d', vfile)[0]
         if not os.path.exists('{0}.corr'.format(vfile)):
             first_channel_MHz = corr_ch0[corr]
             command = (
