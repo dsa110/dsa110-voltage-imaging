@@ -1,5 +1,6 @@
 """Use a template to generate the measurement set from voltages."""
 
+from typing import Tuple
 import numpy as np
 from pkg_resources import resource_filename
 from pyuvdata import UVData
@@ -77,7 +78,7 @@ LOGGER.app("dsacalib")
 
 def update_metadata(
         template_path: str, uvh5file: UVData, reftime_mjd: float, freq_array_Hz: np.ndarray = None,
-        fringestopped=False) -> None:
+        fringestopped: bool = False) -> None:
     """Updates a template file with real metadata.
 
     Questions: Should we update the first two entries of the history table?
@@ -96,16 +97,20 @@ def update_metadata(
     uvw_m = calculate_uvw(uvh5file, ra_rad, dec_rad, reftime_mjd, fringestopped)
     template_ms.update_uvw(uvw_m)
 
-def get_pointing(uvh5file: UVData, obstime_mjd: float) -> tuple:
-    """Convert the pointing information stored in the uvh5file to J2000."""
+def get_pointing(uvh5file: UVData, obstime_mjd: float) -> Tuple[float, float]:
+    """Convert the pointing information stored in the uvh5file to J2000.
+
+    Returns (ra, dec) in radians.
+    """
     pointing = Direction(
         'HADEC', 0., uvh5file.extra_keywords['phase_center_dec'],
         obstime_mjd)
     ra_rad, dec_rad = pointing.J2000()
     return ra_rad, dec_rad
 
-def calculate_uvw(uvh5file: UVData, ra_rad: float, dec_rad: float, reftime_mjd: float,
-                  fringestopped=False) -> np.ndarray:
+def calculate_uvw(
+        uvh5file: UVData, ra_rad: float, dec_rad: float, reftime_mjd: float,
+        fringestopped: bool = False) -> np.ndarray:
     """Calculate the uvw coordinates for a transit observation.
 
     The uvw array is calculated for the midpoint of the 2-s observation to
@@ -119,11 +124,11 @@ def calculate_uvw(uvh5file: UVData, ra_rad: float, dec_rad: float, reftime_mjd: 
     """
     # TODO: Test how different these are from the values in the uvh5 files
     if fringestopped:
-        print('Calculating uvws for all times')
+        print("Calculating uvws for all times")
         time_mjd = convert_jd_to_mjd(uvh5file.time_array)
         ntimes = uvh5file.Ntimes
     else:
-        print(f'Calculating uvws for {reftime_mjd}')
+        print(f"Calculating uvws for {reftime_mjd}")
         time_mjd = np.tile(reftime_mjd, (uvh5file.Nbls))
         ntimes = 1
 
@@ -168,15 +173,15 @@ class TemplateMSMD():
         with table(self.filepath, readonly=False) as tb:
             if nrows < tb.nrows():
                 rows_to_remove = tb.nrows() - nrows
-                print(f'removing {rows_to_remove}')
+                print(f"removing {rows_to_remove}")
                 for i in range(rows_to_remove):
                     tb.removerows(i)
             elif nrows > tb.nrows():
                 rows_to_add = nrows - tb.nrows()
-                print(f'adding {rows_to_add}')
+                print(f"adding {rows_to_add}")
                 tb.addrows(rows_to_add)
 
-    def update_obstime(self, tobs_mjds: np.array):
+    def update_obstime(self, tobs_mjds: np.array) -> None:
         """Update the times in the template ms with the true time of observation."""
         tobs_mjds = tobs_mjds.astype(self.float_type)
         tstart = np.array(tobs_mjds[0]+self.time_offset, self.float_type)
@@ -187,23 +192,23 @@ class TemplateMSMD():
             tb.putcol('TIME_CENTROID', tobs_mjds)
             tb.flush()
 
-        with table(f'{self.filepath}/FEED', readonly=False) as tb:
+        with table(f"{self.filepath}/FEED", readonly=False) as tb:
             tb.putcol('TIME', np.tile(tstart, (self.nants)))
             tb.flush()
 
-        with table(f'{self.filepath}/FIELD', readonly=False) as tb:
+        with table(f"{self.filepath}/FIELD", readonly=False) as tb:
             tb.putcol('TIME', tstart)
             tb.flush()
 
-        with table(f'{self.filepath}/OBSERVATION', readonly=False) as tb:
+        with table(f"{self.filepath}/OBSERVATION", readonly=False) as tb:
             tb.putcol('TIME_RANGE', np.tile(tstart, (1, 2)))
             tb.flush()
 
-        with table(f'{self.filepath}/SOURCE', readonly=False) as tb:
+        with table(f"{self.filepath}/SOURCE", readonly=False) as tb:
             tb.putcol('TIME', tstart_source)
             tb.flush()
 
-    def update_uvw(self, uvw_m: np.array):
+    def update_uvw(self, uvw_m: np.array) -> None:
         """Update the uvw array in the template ms with the true uvw's."""
         uvw_m = uvw_m.astype(self.float_type)
 
@@ -211,21 +216,21 @@ class TemplateMSMD():
             tb.putcol('UVW', uvw_m)
             tb.flush()
 
-    def update_direction(self, ra_rad: float, dec_rad: float):
+    def update_direction(self, ra_rad: float, dec_rad: float) -> None:
         """Update the directions in the template ms with the true direction."""
         direction = np.array([ra_rad, dec_rad], dtype=self.float_type)
 
-        with table(f'{self.filepath}/FIELD', readonly=False) as tb:
+        with table(f"{self.filepath}/FIELD", readonly=False) as tb:
             tb.putcol('DELAY_DIR', np.tile(direction, (1, 1, 1)))
             tb.putcol('PHASE_DIR', np.tile(direction, (1, 1, 1)))
             tb.putcol('REFERENCE_DIR', np.tile(direction, (1, 1, 1)))
             tb.flush()
 
-        with table(f'{self.filepath}/SOURCE', readonly=False) as tb:
+        with table(f"{self.filepath}/SOURCE", readonly=False) as tb:
             tb.putcol('DIRECTION', np.tile(direction, (1, 1)))
             tb.flush()
 
-    def update_frequency(self, freq_array_Hz: np.ndarray):
+    def update_frequency(self, freq_array_Hz: np.ndarray) -> None:
         """Update the frequncy information in the template ms."""
         if freq_array_Hz.ndim == 1:
             freq_array_Hz = freq_array_Hz[np.newaxis, :]
@@ -233,7 +238,7 @@ class TemplateMSMD():
 
         chan_width = np.mean(np.diff(freq_array_Hz), axis=1)
 
-        with table(f'{self.filepath}/SPECTRAL_WINDOW', readonly=False) as tb:
+        with table(f"{self.filepath}/SPECTRAL_WINDOW", readonly=False) as tb:
             tb.putcol('MEAS_FREQ_REF', np.tile(5, nspw))
             tb.putcol('CHAN_FREQ', freq_array_Hz)
             tb.putcol('REF_FREQUENCY', freq_array_Hz[:, 0])
@@ -253,17 +258,17 @@ class TemplateMSMD():
 class TemplateMSVis():
     """Access and update the visibilities and flags for a template ms."""
 
-    def __init__(self, template_filepath: str, n_corr_nodes: int, vis_shape: tuple):
+    def __init__(self, template_filepath: str, n_corr_nodes: int, vis_shape: Tuple[int, int, int]):
         """Open the template ms and instantiate the vis and flag arrays."""
         # The measurement set frequencies should be in ascending order, and there
         # should be a single spectral window.
-        with table(f'{template_filepath}') as tb:
+        with table(f"{template_filepath}") as tb:
             spw = np.array(tb.DATA_DESC_ID[:])
         assert np.all(spw == spw[0])
         spw = spw[0]
 
         # TODO: Update to change the visibility table shape
-        with table(f'{template_filepath}/SPECTRAL_WINDOW') as tb:
+        with table(f"{template_filepath}/SPECTRAL_WINDOW") as tb:
             freq = np.array(tb.CHAN_FREQ[:])[spw, :]
             channel_width = np.median(np.diff(freq))
             freq_ascending = channel_width > 0
@@ -276,7 +281,7 @@ class TemplateMSVis():
         self.freq_ascending = freq_ascending
         self.nfreq_corr = vis_shape[1]//n_corr_nodes
 
-    def update_vis_and_flags(self, uvh5file: UVData):
+    def update_vis_and_flags(self, uvh5file: UVData) -> None:
         """Update the vis and flag arrays using an open uvh5 file."""
         assert uvh5file.Nfreqs == self.nfreq_corr
 
@@ -286,8 +291,8 @@ class TemplateMSVis():
             uvh5file.Ntimes, uvh5file.Nbls, uvh5file.Nfreqs, uvh5file.Npols)
         uvh5_freq = uvh5file.freq_array.squeeze(0)
         uvh5_freq_ascending = np.median(np.diff(uvh5_freq)) > 0
-        print(f'uvh5_freq_ascending: {uvh5_freq_ascending}')
-        print(f'template_ms.freq_ascending: {self.freq_ascending}')
+        print(f"uvh5_freq_ascending: {uvh5_freq_ascending}")
+        print(f"template_ms.freq_ascending: {self.freq_ascending}")
 
         if uvh5_freq_ascending != self.freq_ascending:
             uvh5_vis = uvh5_vis[:, :, ::-1, :]
@@ -299,26 +304,26 @@ class TemplateMSVis():
         # currently used to convert from uvh5 to ms.
         start_chan = np.argmin(np.abs(self.freq-uvh5_freq[0]))
         end_chan = start_chan + self.nfreq_corr
-        print(f'overwriting channels: {start_chan} to {end_chan}')
-        print(f'uvh5 first channel: {uvh5_freq[0]}')
-        print(f'template_ms corresponding channel: {self.freq[start_chan]}')
+        print(f"overwriting channels: {start_chan} to {end_chan}")
+        print(f"uvh5 first channel: {uvh5_freq[0]}")
+        print(f"template_ms corresponding channel: {self.freq[start_chan]}")
         self.vis[:, start_chan:end_chan, :] = np.conjugate(uvh5_vis.reshape(
             uvh5file.Nblts, uvh5file.Nfreqs, uvh5file.Npols))
         self.flags[:, start_chan:end_chan, :] = uvh5_flags.reshape(
             uvh5file.Nblts, uvh5file.Nfreqs, uvh5file.Npols)
 
-    def write_vis_and_flags(self):
+    def write_vis_and_flags(self) -> None:
         """Write updated visibility and flags to the template ms."""
         with table(self.filepath, readonly=False) as tb:
             tb.putcol('DATA', self.vis)
             tb.putcol('FLAG', self.flags)
             tb.flush()
 
-def convert_jd_to_mjds(time_jd):
+def convert_jd_to_mjds(time_jd: float) -> float:
     """Convert times between jd (Julian Date) and mjds (Modified Julian Date Seconds)."""
     time_mjd = convert_jd_to_mjd(time_jd)
     return (time_mjd*u.d).to_value(u.s)
 
-def convert_jd_to_mjd(time_jd):
+def convert_jd_to_mjd(time_jd: float) -> float:
     """Convert times between jd (Julian Date) and mjd (Modified Julian Date)."""
     return Time(time_jd, format='jd').mjd

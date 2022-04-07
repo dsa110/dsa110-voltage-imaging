@@ -22,12 +22,12 @@ from dsaT3.generate_uvh5 import calculate_uvw_and_geodelay, get_total_delay
 from dsaT3.utils import rsync_file, load_params, get_tstart_from_json, get_DM_from_json
 from dsaT3.generate_uvh5 import generate_uvh5
 
-__all__ = ['pipeline_component', 'generate_rsync_component',
-           'generate_correlate_component', 'generate_uvh5_component',
-           'process_join', 'generate_declination_component', 'generate_delay_table',
-           'initialize_system', 'initialize_candidate', 'initialize_correlator',
-           'initialize_uvh5', 'initialize_vis_params', 'parse_visibility_parameters',
-           'get_cable_delays', 'get_blen']
+__all__ = [
+    'pipeline_component', 'generate_rsync_component', 'generate_correlate_component',
+    'generate_uvh5_component', 'process_join', 'generate_declination_component',
+    'generate_delay_table', 'initialize_system', 'initialize_candidate', 'initialize_correlator',
+    'initialize_uvh5', 'initialize_vis_params', 'parse_visibility_parameters', 'get_cable_delays',
+    'get_blen']
 
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 
@@ -100,7 +100,7 @@ def generate_correlate_component(
             time.sleep(10)
 
         corr = re.findall(r"corr\d\d", vfile)[0]
-        if not os.path.exists(f'{vfile}.corr'):
+        if not os.path.exists(f"{vfile}.corr"):
             first_channel_MHz = corr_ch0[corr]
             command = (
                 "/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit_dev "
@@ -117,7 +117,7 @@ def generate_correlate_component(
             proc_stdout = str(process.communicate()[0].strip())
             print(proc_stdout)
 
-        corrfile = f'{vfile}.corr'
+        corrfile = f"{vfile}.corr"
 
         with ncorrfiles.get_lock():
             ncorrfiles.value += 1
@@ -135,7 +135,7 @@ def generate_uvh5_component(
     def write_uvh5(corrfile):
         """Write correlated data to a uvh5 file."""
         _uvh5name = generate_uvh5(
-            f'{corrdir}/{candname}',
+            f"{corrdir}/{candname}",
             declination.value*u.deg,
             corrfile=corrfile,
             vis_params=vis_params,
@@ -204,14 +204,14 @@ def initialize_candidate(candname, datestring, system_setup, dispersion_measure=
 
     if datestring == 'current':
         local = False
-        headerfile = f'{system_setup.t3dir}/{candname}.json'
-        voltagefiles = [f'{corr}.sas.pvt:/home/ubuntu/data/{candname}_data.out'
+        headerfile = f"{system_setup.t3dir}/{candname}.json"
+        voltagefiles = [f"{corr}.sas.pvt:/home/ubuntu/data/{candname}_data.out"
                         for corr in corrlist]
 
     else:
         local = True
-        headerfile = f'{system_setup.archivedir}/{datestring}/{candname}.json'
-        voltagefiles = [f'{system_setup.archivedir}/{datestring}/{corr}_{candname}_data.out'
+        headerfile = f"{system_setup.archivedir}/{datestring}/{candname}.json"
+        voltagefiles = [f"{system_setup.archivedir}/{datestring}/{corr}_{candname}_data.out"
                         for corr in corrlist]
 
     tstart = get_tstart_from_json(headerfile)
@@ -231,7 +231,7 @@ def initialize_correlator(fullpol, ntint, cand, system_setup):
     reftime = cand.time + system_setup.start_time_offset
     npol = 4 if fullpol else 2
     nfint = 1 if fullpol else 8
-    corrfiles = [f'{system_setup.corrdir}/{corr}_{cand.name}_data.out' for corr in corrlist]
+    corrfiles = [f"{system_setup.corrdir}/{corr}_{cand.name}_data.out" for corr in corrlist]
 
     CorrelatorParameters = namedtuple('Correlator', 'reftime npol nfint ntint files')
     correlator_params = CorrelatorParameters(reftime, npol, nfint, ntint, corrfiles)
@@ -240,7 +240,7 @@ def initialize_correlator(fullpol, ntint, cand, system_setup):
 def initialize_uvh5(corrparams, cand, system_setup, outrigger_delays=None):
     """Set parameters for writing uvh5 files."""
     corrlist = list(system_setup.corr_ch0_MHz.keys())
-    uvh5files = [f'{system_setup.corrdir}/{cand.name}_{corr}.hdf5' for corr in corrlist]
+    uvh5files = [f"{system_setup.corrdir}/{cand.name}_{corr}.hdf5" for corr in corrlist]
     visparams = initialize_vis_params(corrparams, cand, outrigger_delays)
 
     UVH5Parameters = namedtuple('UVH5', 'files visparams')

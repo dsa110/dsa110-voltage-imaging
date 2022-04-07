@@ -5,6 +5,7 @@ import yaml
 import numpy as np
 from pkg_resources import resource_filename
 import requests
+from typing import Tuple
 from PIL import Image
 from io import BytesIO
 
@@ -19,6 +20,7 @@ from astropy.visualization import PercentileInterval, AsinhStretch
 import casatools as cc
 from casacore.tables import table
 from casatasks import exportfits
+
 from dsacalib.ms_io import extract_vis_from_ms
 
 from dsaT3.utils import load_params
@@ -27,7 +29,9 @@ PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
 T3PARAMS = load_params(PARAMFILE)
 CORR_ORDER = [int(k[4:]) for k in list(T3PARAMS['ch0'].keys())]
 
-def plot_image(imname, verbose=False, outname=None, show=True, expected_point=None):
+def plot_image(
+        imname: str, verbose: bool = False, outname: str = None, show: bool = True, 
+        expected_point: Tuple['Quantity', 'Quantity'] = None) -> Tuple['Quantity', 'Quantity']:
     """Plots an image from the casa-generated image file.
 
     Parameters
@@ -40,8 +44,13 @@ def plot_image(imname, verbose=False, outname=None, show=True, expected_point=No
         If provided, saves the image in <outname>_image.png.
     show : bool
         If False, the image is closed at the end of the function.
-    cellsize : str
-        The size of each pixel, in a Casa-recognized angle.
+    expected_point : tuple
+        The expected location of the brightest pixel, (ra, dec), both as astropy quantities.
+
+    Returns
+    -------
+    tuple
+        The (ra, dec) of the brightest pixel, astropy quantities.
     """
     error = 0
     ia = cc.image()
@@ -50,17 +59,15 @@ def plot_image(imname, verbose=False, outname=None, show=True, expected_point=No
     # dd has shape npixx, npixy, nch, npol
     npixx = dd['shape'][0]
     if verbose:
-        print('Image shape: {0}'.format(dd['shape']))
+        print(f"Image shape: {dd['shape']}")
     imvals = ia.getchunk(0, int(npixx))[:, :, 0, 0]
-    #imvals = fftshift(imvals)
     error += ia.done()
     max_idxs = np.unravel_index(imvals.argmax(), imvals.shape)
     cellsizex = Angle(dd['incr'][0], dd['axisunits'][0])
     cellsizey = Angle(dd['incr'][1], dd['axisunits'][1])
     ra, dec = (
-        Angle('{0}{1}'.format(dd['refval'][0], dd['axisunits'][0])),
-        Angle('{0}{1}'.format(dd['refval'][1], dd['axisunits'][1]))
-    )
+        Angle(f"{dd['refval'][0]}{dd['axisunits'][0]}"),
+        Angle(f"{dd['refval'][1]}{dd['axisunits'][1]}"))
     brightest_point = (
         ra +
         Angle('{0}{1}'.format(
@@ -70,17 +77,12 @@ def plot_image(imname, verbose=False, outname=None, show=True, expected_point=No
         dec +
         Angle('{0}{1}'.format(
             dd['incr'][1]*(max_idxs[1]-dd['refpix'][1]),
-            dd['axisunits'][1]
-        ))
-    )
+            dd['axisunits'][1])))
+
     if verbose:
-        print('Peak SNR at pix ({0},{1}) = {2}'.format(max_idxs[0],
-                                                       max_idxs[1],
-                                                       imvals.max()/
-                                                       imvals.std()))
-        print('Value at peak: {0}'.format(imvals.max()))
-        print('Value at origin: {0}'.format(imvals[imvals.shape[0]//2,
-                                                   imvals.shape[1]//2]))
+        print(f"Peak SNR at pix ({max_idxs[0]}, {max_idxs[1]}) = {imvals.max()/imvals.std()}")
+        print(f"Value at peak: {imvals.max()}")
+        print(f"Value at origin: {imvals[imvals.shape[0]//2, imvals.shape[1]//2]}")
 
     _, ax = plt.subplots(1, 1, figsize=(15, 8))
     pim = ax.imshow(
@@ -115,7 +117,7 @@ def plot_image(imname, verbose=False, outname=None, show=True, expected_point=No
     if not show:
         plt.close()
     if error > 0:
-        print('{0} errors occured during imaging'.format(error))
+        print(f"{error} errors occured during imaging")
     return brightest_point
 
 def read_bfweights(bfweights, bfdir):

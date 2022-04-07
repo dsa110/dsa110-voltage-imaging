@@ -21,9 +21,9 @@ def bin_to_uvh5() -> None:
         npol_out=params['npol_out']
     )
 
-def get_parameters() -> tuple:
+def get_parameters() -> dict:
     """Define parameters for conversion."""
-    headername = '/media/ubuntu/data/dsa110/T3/2022_2_6_19_34_4/220207aabh.json'
+    headername = "/media/ubuntu/data/dsa110/T3/2022_2_6_19_34_4/220207aabh.json"
     tstart = get_tstart_from_json(headername)
 
     declination = get_declination(get_elevation(tstart)).to_value(u.deg)
@@ -31,10 +31,10 @@ def get_parameters() -> tuple:
     params = {
         'tstart': tstart,
         'declination': declination,
-        'corr_files': {'corr04': 'corr04_220207aabh_data.out.corr',
-                       'corr03': 'corr03_220207aabh_data.out.corr'},
-        'candname': '220207aabh',
-        'output_dir': '/media/ubuntu/ssd/data/',
+        'corr_files': {'corr04': "corr04_220207aabh_data.out.corr",
+                       'corr03': "corr03_220207aabh_data.out.corr"},
+        'candname': "220207aabh",
+        'output_dir': "/media/ubuntu/ssd/data/",
         'ntint': 8,
         'nfint': 1,
         'start_offset': 1716,

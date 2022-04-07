@@ -19,8 +19,9 @@ import astropy.units as u
 # 3C196
 # RA, DEC = 123.40029167*u.deg, 48.21719444*u.deg
 
-def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
-                   dispersion_measure: float=None, full_pol=False) -> None:
+def voltages_to_ms(
+        candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
+        dispersion_measure: float = None, full_pol: bool = False) -> None:
     """
     Correlate voltage files and convert to a measurement set.
 
@@ -127,7 +128,7 @@ def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int
         proc.join()
 
     # Convert uvh5 files to a measurement set
-    msname = f'{system_setup.msdir}{candname}'
+    msname = f"{system_setup.msdir}{candname}"
     uvh5_to_ms(
         cand.name, cand.time, uvh5params.files, msname, corrparams.reftime,
         template_path=None)
@@ -151,18 +152,18 @@ def get_reftime() -> "Time":
     reftime = Time(refmjd, format='mjd')
     return reftime
 
-def parse_commandline_arguments() -> "argparse.Namespace":
+def parse_commandline_arguments() -> 'argparse.Namespace':
     """Parse commandline arguments."""
     parser = argparse.ArgumentParser(
-        description='Correlate candidate voltage files.')
+        description="Correlate candidate voltage files.")
     parser.add_argument(
         'candname',
         type=str,
-        help='unique candidate name')
+        help="unique candidate name")
     parser.add_argument(
         '--datestring',
         type=str,
-        help='datestring of archived candidate',
+        help="datestring of archived candidate",
         nargs='?',
         default='current')
     parser.add_argument(
@@ -170,13 +171,13 @@ def parse_commandline_arguments() -> "argparse.Namespace":
         type=int,
         nargs='?',
         default=8,
-        help='number of native time bins to integrate during correlation')
+        help="number of native time bins to integrate during correlation")
     parser.add_argument(
         '--startoffset',
         type=int,
         nargs='?',
         default=1716,
-        help='nbins from beginning of correlated data to start writing to ms')
+        help="nbins from beginning of correlated data to start writing to ms")
     parser.add_argument(
         '--stopoffset',
         type=int,
@@ -187,13 +188,13 @@ def parse_commandline_arguments() -> "argparse.Namespace":
         '--dm',
         type=float,
         nargs='?',
-        help='dispersion measure to use instead of value in header file')
+        help="dispersion measure to use instead of value in header file")
 
     args = parser.parse_args()
     return args
 
 if __name__ == '__main__':
     ARGS = parse_commandline_arguments()
-    voltages_to_ms(ARGS.candname, ARGS.datestring, ntint=ARGS.ntint,
-                   start_offset=ARGS.startoffset, end_offset=ARGS.stopoffset,
-                   dispersion_measure=ARGS.dm)
+    voltages_to_ms(
+        ARGS.candname, ARGS.datestring, ntint=ARGS.ntint, start_offset=ARGS.startoffset,
+        end_offset=ARGS.stopoffset, dispersion_measure=ARGS.dm)

@@ -12,7 +12,7 @@ from dsacalib.fringestopping import calc_uvw, calc_uvw_interpolate
 import dsacalib.constants as ct
 
 def generate_uvh5(
-        name: str, pt_dec: "astropy.Quantity", corrfile: str, vis_params: dict,
+        name: str, pt_dec: 'astropy.Quantity', corrfile: str, vis_params: dict,
         start_offset: int = None, end_offset: int = None) -> str:
     """Generates a measurement set from the T3 correlations.
 
@@ -62,9 +62,9 @@ def generate_uvh5(
     nfreq_out = size_params['chunk_shape'][2]
 
     # Generate a uvh5 file for each corr node
-    corr = re.findall('corr[0-9][0-9]', corrfile)[0]
+    corr = re.findall(r"corr[0-9][0-9]", corrfile)[0]
 
-    outname = '{1}_{0}.hdf5'.format(corr, name)
+    outname = f"{name}_{corr}.hdf5"
     # Dont overwrite if the uvh5 file already exists
     if os.path.exists(outname):
         return outname
@@ -136,7 +136,7 @@ def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int) 
     framespblock = 8
     if (end_offset - start_offset)%framespblock != 0:
         framespblock = end_offset-start_offset
-        print(f'Changing framespblock to {framespblock}')
+        print(f"Changing framespblock to {framespblock}")
 
     itemspblock = itemspframe*framespblock
     nblocks = (end_offset-start_offset)//framespblock
@@ -154,8 +154,7 @@ def parse_size_parameters(vis_params: dict, start_offset: int, end_offset: int) 
     return size_params
 
 def calculate_uvw_and_geodelay(
-        vis_params: dict, tobs: np.ndarray, pt_dec: float,
-        interpolate_uvws: bool = True) -> tuple:
+        vis_params: dict, tobs: np.ndarray, pt_dec: float, interpolate_uvws: bool = True) -> tuple:
     """Calculate the uvw coordinates in the correlated file.
 
     Parameters
@@ -194,8 +193,9 @@ def calculate_uvw_and_geodelay(
 
     return buvw, ant_bw
 
-def get_total_delay(baseline_cable_delay: np.ndarray, ant_bw: np.ndarray, bname: list,
-                    antenna_order: list) -> np.ndarray:
+def get_total_delay(
+        baseline_cable_delay: np.ndarray, ant_bw: np.ndarray, bname: list,
+        antenna_order: list) -> np.ndarray:
     """Calculate total (cable plus geometric) delay for each baseline.
 
     Parameters
@@ -263,8 +263,8 @@ def get_XX_YY(vis_chunk: np.ndarray) -> np.ndarray:
     """
     return vis_chunk[..., [0, -1]]
 
-def get_visibility_chunk(cfhandler: "FileHandler", itemspblock: int,
-                         chunk_shape: tuple) -> np.ndarray:
+def get_visibility_chunk(
+        cfhandler: 'FileHandler', itemspblock: int, chunk_shape: tuple) -> np.ndarray:
     """Get a visibility chunk from the corr file open in `cfhandler`.
 
     Parameters

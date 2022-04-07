@@ -5,8 +5,9 @@ from casacore.tables import table
 
 DISPERSION_CONSTANT = 10/2.41
 
-def dedisperse_and_select_times(vis, freq_GHz, sample_time_ms, dispersion_measure, centre_tbin,
-                                ntbins, ref_freq_GHz):
+def dedisperse_and_select_times(
+        vis: np.ndarray, freq_GHz: np.ndarray, sample_time_ms: float, dispersion_measure: float,
+        centre_tbin: int, ntbins: int, ref_freq_GHz: float) -> np.ndarray:
     """Dedisperse visibilities by selecting samples in time using a sliding window in freq."""
     _ntimes, nbaselines, nfreqs, npols = vis.shape
     assert len(freq_GHz) == nfreqs
@@ -23,7 +24,9 @@ def dedisperse_and_select_times(vis, freq_GHz, sample_time_ms, dispersion_measur
 
     return vis_out
 
-def dedisperse(vis, freq_GHz, sample_time_ms, dispersion_measure, ref_freq_GHz):
+def dedisperse(
+        vis: np.ndarray, freq_GHz: np.ndarray, sample_time_ms: float, dispersion_measure: float,
+        ref_freq_GHz: float) -> np.ndarray:
     """Visibilities must be (time, baseline, freq, pol)"""
     nfreqs = len(freq_GHz)
     assert vis.shape[2] == nfreqs
@@ -36,7 +39,8 @@ def dedisperse(vis, freq_GHz, sample_time_ms, dispersion_measure, ref_freq_GHz):
 
     return vis
 
-def get_dispersion_delay_ms(freq_GHz, dispersion_measure, ref_freq_GHz) -> np.ndarray:
+def get_dispersion_delay_ms(
+        freq_GHz: np.ndarray, dispersion_measure: float, ref_freq_GHz: float) -> np.ndarray:
     """Calculate the dispersion delay per channel in ms."""
     dispersion_delay_ms = DISPERSION_CONSTANT*dispersion_measure*(1/freq_GHz**2-1/ref_freq_GHz**2)
     return dispersion_delay_ms
@@ -75,7 +79,7 @@ def get_sigma_spectrum_desc() -> dict:
         'dataManagerGroup': 'TiledSigmaSpectrum',
         'option': 0,
         'maxlen': 0,
-        'comment': 'Estimated rms noise for each data point',
+        'comment': "Estimated rms noise for each data point",
         'ndim': 2,
         '_c_order': True,
         'keywords': {}}}
