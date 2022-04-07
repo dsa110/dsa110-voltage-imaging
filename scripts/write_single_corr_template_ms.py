@@ -7,9 +7,9 @@ import datetime
 from pkg_resources import resource_filename
 import astropy.units as u
 from dsacalib.ms_io import uvh5_to_ms
-from dsaT3.utils import load_params
-from dsaT3.voltages_to_ms import get_tstart_from_json
-from dsaT3.generate_uvh5 import generate_uvh5
+from dsavim.utils import load_params
+from dsavim.voltages_to_ms import get_tstart_from_json
+from dsavim.generate_uvh5 import generate_uvh5
 
 
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')

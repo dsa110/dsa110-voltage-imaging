@@ -2,8 +2,9 @@
 
 import astropy.units as u
 from dsautils.coordinates import get_declination, get_elevation
-from dsaT3.generate_uvh5 import generate_uvh5
-from dsaT3.utils import get_tstart_from_json
+
+from dsavim.generate_uvh5 import generate_uvh5
+from dsavim.utils import get_tstart_from_json
 
 def bin_to_uvh5() -> None:
     """Convert a binary file output by the cpu correlator to uvh5."""

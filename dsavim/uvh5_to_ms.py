@@ -10,7 +10,8 @@ from astropy.time import Time
 from casacore.tables import tablecopy
 from dsacalib.uvh5_to_ms import load_uvh5_file, set_antenna_positions, phase_visibilities
 from dsacalib.uvh5_to_ms import fix_descending_missing_freqs, write_UV_to_ms
-from dsaT3.update_template import update_metadata, TemplateMSVis
+
+from dsavim.update_template import update_metadata, TemplateMSVis
 
 # TODO: Clean up parameters in this file
 UVH5DIR = '/media/ubuntu/ssd/data/'

@@ -4,8 +4,8 @@ Convert voltage files to measurement sets.
 import os
 from multiprocessing import Process, Manager
 import argparse
-from dsaT3.uvh5_to_ms import uvh5_to_ms
-from dsaT3.voltages_to_ms_dask import *
+from dsavim.uvh5_to_ms import uvh5_to_ms
+from dsavim.voltages_to_ms_dask import *
 from dask.distributed import Client, wait
 
 def voltages_to_ms(candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,

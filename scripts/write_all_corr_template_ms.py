@@ -7,10 +7,10 @@ from pkg_resources import resource_filename
 import numpy as np
 from casacore.tables import table
 from casatasks import virtualconcat
-from dsaT3.utils import load_params
-from dsaT3.update_template import update_template
+from dsavim.utils import load_params
+from dsavim.update_template import update_template
 
-PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
+PARAMFILE = resource_filename('dsavim', 'data/voltage_corr_parameters.yaml')
 
 # TODO: update_template_ms was designed for an entire ms with many frequencies, but
 # TODO: this is too difficult to copy, read in etc.  Instead we will update each submms

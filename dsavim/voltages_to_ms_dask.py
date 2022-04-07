@@ -10,17 +10,21 @@ import subprocess
 from multiprocessing import Process
 import queue
 from pkg_resources import resource_filename
+
 import numpy as np
 import astropy.units as u
 from dask.distributed import Variable, Lock
+
 from antpos.utils import get_itrf
 from dsautils.coordinates import get_declination, get_elevation
 import dsacalib.constants as ct
-from dsaT3.generate_uvh5 import calculate_uvw_and_geodelay, get_total_delay
-from dsaT3.utils import rsync_file, load_params, get_tstart_from_json, get_DM_from_json
-from dsaT3.generate_uvh5 import generate_uvh5
 
-PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
+from dsavim.generate_uvh5 import calculate_uvw_and_geodelay, get_total_delay
+from dsavim.utils import rsync_file, load_params, get_tstart_from_json, get_DM_from_json
+from dsavim.generate_uvh5 import generate_uvh5
+
+PARAMFILE = resource_filename('dsavim', 'data/voltage_corr_parameters.yaml')
+
 
 class ProtectedVariable():
     def __init__(self, name, initial_value=None):
@@ -64,7 +68,7 @@ def generate_correlate_component(
         if ncorrfiles.get() > 2:
             await asyncio.sleep(60)
 
-        corr = re.findall('corr\d\d', vfile)[0]
+        corr = re.findall(r"corr\d\d", vfile)[0]
         if not os.path.exists('{0}.corr'.format(vfile)):
             first_channel_MHz = corr_ch0[corr]
             command = (

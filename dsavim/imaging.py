@@ -23,11 +23,11 @@ from casatasks import exportfits
 
 from dsacalib.ms_io import extract_vis_from_ms
 
-from dsaT3.utils import load_params
+from dsavim.utils import load_params
 
-PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
-T3PARAMS = load_params(PARAMFILE)
-CORR_ORDER = [int(k[4:]) for k in list(T3PARAMS['ch0'].keys())]
+PARAMFILE = resource_filename('dsavim', "data/voltage_corr_parameters.yaml")
+VIMPARAMS = load_params(PARAMFILE)
+CORR_ORDER = [int(k[4:]) for k in list(VIMPARAMS['ch0'].keys())]
 
 def plot_image(
         imname: str, verbose: bool = False, outname: str = None, show: bool = True, 
@@ -146,7 +146,7 @@ def read_bfweights(bfweights, bfdir):
         bfparams = yaml.load(yamlf, Loader=yaml.FullLoader)
     if 'cal_solutions' in bfparams.keys():
         bfparams = bfparams['cal_solutions']
-    antenna_order = bfparams.get('antenna_order', T3PARAMS['antennas'])
+    antenna_order = bfparams.get('antenna_order', VIMPARAMS['antennas'])
     corr_order = bfparams.get('corr_order', CORR_ORDER)
     gains = np.zeros(
         (len(antenna_order), len(corr_order), 48, 2),

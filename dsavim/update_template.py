@@ -1,18 +1,21 @@
 """Use a template to generate the measurement set from voltages."""
 
 from typing import Tuple
-import numpy as np
 from pkg_resources import resource_filename
+
+import numpy as np
 from pyuvdata import UVData
 from casacore.tables import table
 from astropy.time import Time
 import astropy.units as u
+
 from dsamfs.fringestopping import calc_uvw_blt
 import dsautils.dsa_syslog as dsl
-from dsaT3.utils import load_params
 from dsacalib.utils import Direction
 
-PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
+from dsavim.utils import load_params
+
+PARAMFILE = resource_filename('dsavim', "data/voltage_corr_parameters.yaml")
 PARAMS = load_params(PARAMFILE)
 
 # Logger

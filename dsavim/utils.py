@@ -9,17 +9,17 @@ from dsautils import cnf
 
 
 def load_params(paramfile: str) -> dict:
-    """Load parameters for T3 correlation from a yaml file."""
+    """Load parameters for voltage correlation from a yaml file."""
     with open(paramfile) as yamlf:
-        T3params = yaml.load(yamlf, Loader=yaml.FullLoader)['T3corr']
+        voltage_corr_params = yaml.load(yamlf, Loader=yaml.FullLoader)['voltage_corr']
     conf = cnf.Conf()
     corrconf = conf.get('corr')
     mfsconf = conf.get('fringe')
-    T3params['ch0'] = corrconf['ch0']
-    T3params['f0_GHz'] = corrconf['f0_GHz']
-    T3params['antennas'] = list(corrconf['antenna_order'].values())[:63]
-    T3params['outrigger_delays'] = mfsconf['outrigger_delays']
-    return T3params
+    voltage_corr_params['ch0'] = corrconf['ch0']
+    voltage_corr_params['f0_GHz'] = corrconf['f0_GHz']
+    voltage_corr_params['antennas'] = list(corrconf['antenna_order'].values())[:63]
+    voltage_corr_params['outrigger_delays'] = mfsconf['outrigger_delays']
+    return voltage_corr_params
 
 
 def get_tstart_from_json(headername: str) -> 'astropy.time.Time':

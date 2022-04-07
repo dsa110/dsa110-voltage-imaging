@@ -1,8 +1,8 @@
-T3corr:
-    msdir: '/media/ubuntu/data/dsa110/imaging/'
-    archivedir: '/media/ubuntu/ssd/T3/'
-    corrdir: '/media/ubuntu/ssd/data/'
-    T3dir: '/home/ubuntu/data/T3/'
+voltage_corr:
+    msdir: "/media/ubuntu/data/dsa110/imaging/"
+    archivedir: "/media/ubuntu/ssd/T3/"
+    corrdir: "/media/ubuntu/ssd/data/"
+    T3dir: "/home/ubuntu/data/T3/"
     nchan: 8192 # native
     nchan_corr: 384
     deltaf_MHz: -0.030517578125 # native
