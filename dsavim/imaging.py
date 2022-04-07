@@ -9,7 +9,6 @@ from typing import Tuple
 from PIL import Image
 from io import BytesIO
 
-import numpy
 import matplotlib.pyplot as plt
 import astropy.units as u
 from astropy.coordinates import Angle
@@ -70,14 +69,9 @@ def plot_image(
         Angle(f"{dd['refval'][1]}{dd['axisunits'][1]}"))
     brightest_point = (
         ra +
-        Angle('{0}{1}'.format(
-            dd['incr'][0]*(max_idxs[0]-dd['refpix'][0]),
-            dd['axisunits'][0]
-        ))/np.cos(dec),
+        Angle(f"{dd['incr'][0]*(max_idxs[0]-dd['refpix'][0])}{dd['axisunits'][0]}")/np.cos(dec),
         dec +
-        Angle('{0}{1}'.format(
-            dd['incr'][1]*(max_idxs[1]-dd['refpix'][1]),
-            dd['axisunits'][1])))
+        Angle(f"{dd['incr'][1]*(max_idxs[1]-dd['refpix'][1])}{dd['axisunits'][1]}"))
 
     if verbose:
         print(f"Peak SNR at pix ({max_idxs[0]}, {max_idxs[1]}) = {imvals.max()/imvals.std()}")
@@ -101,19 +95,18 @@ def plot_image(
     ax.axhline(0, color='white', alpha=0.5)
     ax.set_xlabel('l (arcmin)')
     ax.set_ylabel('m (arcmin)')
-    plttitle = '{0} {1} {2}'.format(
-        imname,
-        brightest_point[0].to_string('hourangle'),
-        brightest_point[1].to_string('deg')
-    )
+    
+    plttitle = (
+        f"{imname} {brightest_point[0].to_string('hourangle')} "
+        f"{brightest_point[1].to_string('deg')}")
     if expected_point is not None:
-        plttitle += ', offset by {0:.2f} {1:.2f}'.format(
-            (brightest_point[0]-expected_point[0]).to(u.arcsecond),
-            (brightest_point[1]-expected_point[1]).to(u.arcsecond)
-        )
+        plttitle += (
+            f", offset by {(brightest_point[0]-expected_point[0]).to(u.arcsecond):.2f} "
+            f"{(brightest_point[1]-expected_point[1]).to(u.arcsecond):.2f}")
     plt.title(plttitle)
+    
     if outname is not None:
-        plt.savefig('{0}_image.png'.format(outname))
+        plt.savefig(f"{outname}_image.png")
     if not show:
         plt.close()
     if error > 0:
@@ -139,10 +132,7 @@ def read_bfweights(bfweights, bfdir):
         The beamformer weights, (antenna, freqeuncy, polarization).
         Frequency is in the same order as in the correlator.
     """
-    with open('{0}/beamformer_weights_{1}.yaml'.format(
-            bfdir,
-            bfweights,
-    )) as yamlf:
+    with open(f"{bfdir}/beamformer_weights_{bfweights}.yaml") as yamlf:
         bfparams = yaml.load(yamlf, Loader=yaml.FullLoader)
     if 'cal_solutions' in bfparams.keys():
         bfparams = bfparams['cal_solutions']
@@ -154,11 +144,7 @@ def read_bfweights(bfweights, bfdir):
     )
     for corridx, corr in enumerate(corr_order):
         with open(
-                '{0}/beamformer_weights_corr{1:02d}_{2}.dat'.format(
-                    bfdir,
-                    corr,
-                    bfweights
-                ),
+                f"{bfdir}/beamformer_weights_corr{corr:02d}_{bfweights}.dat",
                 'rb'
         ) as f:
             data = np.fromfile(f, '<f4')
@@ -167,7 +153,7 @@ def read_bfweights(bfweights, bfdir):
 
     return antenna_order, gains
 
-def calibrate_T3ms_percorrnode(msnames: dict, bfweights: str, bfdir: str = '/data/dsa110/T3/calibs/'):
+def calibrate_T3ms_percorrnode(msnames: dict, bfweights: str, bfdir: str = "/data/dsa110/T3/calibs/"):
     """Calibrates a measurement set using the beamformer weights.
 
     Calibrated data is written into the CORRECTED_DATA column.
@@ -238,7 +224,7 @@ def apply_calibration(msname: str, gains: np.ndarray, antenna_order: list):
             data[i, ...] *= bl_gains[np.newaxis, :, :]
         except ValueError:
             flags[i, ...] = 1
-            print('no calibration solutions for baseline {0}-{1}'.format(a1, a2))
+            print(f"no calibration solutions for baseline {a1}-{a2}")
 
     data = data.swapaxes(0, 1).reshape((-1, nfreq, npol))
     flags = flags.swapaxes(0, 1).reshape((-1, nfreq, npol))
@@ -249,11 +235,11 @@ def apply_calibration(msname: str, gains: np.ndarray, antenna_order: list):
         flags = flags.reshape((nbl*nt, nspw, nfreq//nspw, npol)
                              ).swapaxes(0, 1).reshape(nbl*nt*nspw, nfreq//nspw, npol)
 
-    with table('{0}.ms'.format(msname), readonly=False) as tb:
+    with table(f"{msname}.ms", readonly=False) as tb:
         tb.putcol('CORRECTED_DATA', data)
         tb.putcol('FLAG', flags)
 
-def get_ps1_images(ra: float, dec: float, size: int = 240, filters: str = "grizy") -> "Table":
+def get_ps1_images(ra: float, dec: float, size: int = 240, filters: str = 'grizy') -> 'Table':
     """Query ps1filenames.py service to get a list of images
     
     ra, dec = position in degrees
@@ -263,15 +249,14 @@ def get_ps1_images(ra: float, dec: float, size: int = 240, filters: str = "grizy
     """
     
     service = "https://ps1images.stsci.edu/cgi-bin/ps1filenames.py"
-    url = ("{service}?ra={ra}&dec={dec}&size={size}&format=fits"
-           "&filters={filters}").format(**locals())
+    url = f"{service}?ra={ra}&dec={dec}&size={size}&format=fits&filters={filters}"
     table = Table.read(url, format='ascii')
     return table
 
 
 def get_ps1_url(
-        ra: float, dec: float, size: int = 240, output_size: int = None, filters: str = "grizy",
-        format: str = "jpg", color: bool = False) -> str:
+        ra: float, dec: float, size: int = 240, output_size: int = None, filters: str = 'grizy',
+        image_format: str = 'jpg', color: bool = False) -> str:
     """Get URL for images in the table
     
     ra, dec = position in degrees
@@ -285,26 +270,28 @@ def get_ps1_url(
     Returns a string with the URL
     """
     
-    if color and format == "fits":
+    if color and image_format == "fits":
         raise ValueError("color images are available only for jpg or png formats")
-    if format not in ("jpg","png","fits"):
-        raise ValueError("format must be one of jpg, png, fits")
-    table = get_ps1_images(ra,dec,size=size,filters=filters)
-    url = ("https://ps1images.stsci.edu/cgi-bin/fitscut.cgi?"
-           "ra={ra}&dec={dec}&size={size}&format={format}").format(**locals())
+
+    if image_format not in ('jpg', 'png', 'fits'):
+        raise ValueError("image_format must be one of jpg, png, fits")
+    table = get_ps1_images(ra, dec, size=size, filters=filters)
+    url = (
+        f"https://ps1images.stsci.edu/cgi-bin/fitscut.cgi?ra={ra}&dec={dec}&size={size}"
+        f"&format={image_format}")
     if output_size:
-        url = url + "&output_size={}".format(output_size)
+        url = url + f"&output_size={output_size}"
     # sort filters from red to blue
     flist = ["yzirg".find(x) for x in table['filter']]
-    table = table[numpy.argsort(flist)]
+    table = table[np.argsort(flist)]
     if color:
         if len(table) > 3:
             # pick 3 filters
-            table = table[[0,len(table)//2,len(table)-1]]
-        for i, param in enumerate(["red","green","blue"]):
-            url = url + "&{}={}".format(param,table['filename'][i])
+            table = table[[0, len(table)//2, len(table)-1]]
+        for i, param in enumerate(["red", "green", "blue"]):
+            url = url + f"&{param}={table['filename'][i]}"
     else:
-        urlbase = url + "&red="
+        urlbase = url + f"&red="
         url = []
         for filename in table['filename']:
             url.append(urlbase+filename)
@@ -313,7 +300,7 @@ def get_ps1_url(
 
 def get_ps1_colorim(
         ra: float, dec: float, size: int = 240, output_size: int = None, filters: str = "grizy",
-        format: str = "jpg") -> "image":
+        image_format: str = "jpg") -> "image":
     
     """Get color image at a sky position
     
@@ -329,15 +316,16 @@ def get_ps1_colorim(
     if format not in ("jpg", "png"):
         raise ValueError("format must be jpg or png")
     url = get_ps1_url(
-        ra, dec, size=size, filters=filters, output_size=output_size, format=format, color=True)
+        ra, dec, size=size, filters=filters, output_size=output_size, image_format=image_format,
+        color=True)
     r = requests.get(url)
     im = Image.open(BytesIO(r.content))
     return im
 
 
 def get_ps1_grayim(
-        ra: float, dec: float, size: int = 240, output_size: int = None, filter: str = "g",
-        format: str = "jpg") -> "image":
+        ra: float, dec: float, size: int = 240, output_size: int = None, image_filter: str = "g",
+        image_format: str = "jpg") -> "image":
     
     """Get grayscale image at a sky position
     
@@ -350,11 +338,11 @@ def get_ps1_grayim(
     Returns the image
     """
     
-    if format not in ("jpg","png"):
-        raise ValueError("format must be jpg or png")
-    if filter not in list("grizy"):
+    if image_format not in ("jpg", "png"):
+        raise ValueError("image_format must be jpg or png")
+    if image_filter not in list("grizy"):
         raise ValueError("filter must be one of grizy")
-    url = get_ps1_url(ra,dec,size=size,filters=filter,output_size=output_size,format=format)
+    url = get_ps1_url(ra, dec, size=size, filters=image_filter, output_size=output_size, image_format=image_format)
     r = requests.get(url[0])
     im = Image.open(BytesIO(r.content))
     return im
@@ -387,8 +375,8 @@ def get_centre_coordinates(imname: str) -> tuple:
     ia.close()
     npixx = dd['shape'][0]
     raref, decref = (
-        Angle('{0}{1}'.format(dd['refval'][0], dd['axisunits'][0])),
-        Angle('{0}{1}'.format(dd['refval'][1], dd['axisunits'][1]))
+        Angle(f"{dd['refval'][0]}{dd['axisunits'][0]}"),
+        Angle(f"{dd['refval'][1]}{dd['axisunits'][1]}")
     )
     ralist, declist = (
         raref +
@@ -401,10 +389,11 @@ def get_centre_coordinates(imname: str) -> tuple:
 
     return ra_centre, dec_centre, size
 
-def get_fits_image(ra_centre: "Quantitiy", dec_centre: "Quantity", size: "Quantity") -> "np.ndarray":
+def get_fits_image(ra_centre: "Quantity", dec_centre: "Quantity", size: "Quantity") -> "np.ndarray":
     """Extract the ps1 fits image from the online server."""
     fitsurl = get_ps1_url(
-    ra_centre.to_value(u.deg), dec_centre.to_value(u.deg), size=int(round(size.to_value(u.arcsecond)*4)), filters="i", format="fits")
+        ra_centre.to_value(u.deg), dec_centre.to_value(u.deg), size=int(round(size.to_value(u.arcsecond)*4)),
+        filters="i", image_format="fits")
 
     with fits.open(fitsurl[0]) as fh:
         hdu = fh[0]
@@ -424,18 +413,17 @@ def plot_contours_on_ps1(imname: str, resize_factor: float = None) -> None:
         exportfits(imname, fits_imname)
 
     radio_image, radiowcs = load_radio_image(fits_imname)
-    if np.isnan(np.nanmean(radio_image)):
-        radio_image = load_radio_casa_image(imname)
-        radiowcs = None
     ra_centre, dec_centre, size = get_centre_coordinates(imname)
+    print(ra_centre.to_string('hourangle'), dec_centre.to_string('deg'))
     ps1_image, wcs = get_fits_image(ra_centre, dec_centre, size)
 
     immax = np.nanmax(radio_image)
     contours = [0.01, 0.1, 0.25, 0.5, 0.75, 0.90, 0.99]
 
-    fig, ax = plt.subplots(1, 1, figsize=(12, 6), subplot_kw={"projection": radiowcs, "slices": ('x', 'y', 0, 0)})
-    ax.imshow(ps1_image, origin="lower", transform=ax.get_transform(wcs))
-    ax.contour(radio_image, colors="white", levels=[immax*contour for contour in contours])
+    fig, ax = plt.subplots(1, 1, figsize=(12, 6), subplot_kw={'projection': radiowcs, 'slices': ('x', 'y', 0, 0)})
+    ax.imshow(ps1_image, origin='lower', transform=ax.get_transform(wcs))
+    if immax > 0:
+        ax.contour(radio_image, colors='white', levels=[immax*contour for contour in contours])
     if resize_factor:
         x1, x2 = ax.get_xlim()
         y1, y2 = ax.get_ylim()
