@@ -1,2 +1,2 @@
-# dsa110-T3
-Imaging routines and visualizations for DSA-110's T3 system
+# dsa110-voltage-imaging
+Imaging routines and visualizations for DSA-110 candidate voltages.

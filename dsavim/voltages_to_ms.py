@@ -1,19 +1,23 @@
 """Utilties for converting T3 voltage dumps to measurement sets."""
 
 from collections import namedtuple
+from typing import Callable
 import time
 import re
 import os
 from functools import wraps
+
 import subprocess
 from multiprocessing import Process
 import queue
 from pkg_resources import resource_filename
 import numpy as np
 import astropy.units as u
+
 from antpos.utils import get_itrf
 from dsautils.coordinates import get_declination, get_elevation
 import dsacalib.constants as ct
+
 from dsaT3.generate_uvh5 import calculate_uvw_and_geodelay, get_total_delay
 from dsaT3.utils import rsync_file, load_params, get_tstart_from_json, get_DM_from_json
 from dsaT3.generate_uvh5 import generate_uvh5
@@ -43,7 +47,7 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
                 continue
             except (EOFError, BrokenPipeError) as exc:
                 # Log and end gracefully if the queue is broken
-                print(f'{type(exc).__name__} error when accessing inqueue in {targetfn.__name__}')
+                print(f"{type(exc).__name__} error when accessing inqueue in {targetfn.__name__}")
                 done = True
                 continue
 
@@ -56,13 +60,13 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
             # Pass the item on to the next queue
             if outqueue is not None:
                 try:
-                    print(f'{targetfn.__name__} sending {item} to queue')
+                    print(f"{targetfn.__name__} sending {item} to queue")
                     outqueue.put(item)
                 except (EOFError, BrokenPipeError) as exc:
                     # Log and end gracefully if the queue is broken
                     print(
-                        f'{type(exc).__name__} error when accessing outqueue '
-                        f'in {targetfn.__name__}')
+                        f"{type(exc).__name__} error when accessing outqueue "
+                        f"in {targetfn.__name__}")
                     done = True
 
             inqueue.task_done()
@@ -71,7 +75,7 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
 
     return inner
 
-def generate_rsync_component(local: bool) -> "Callable":
+def generate_rsync_component(local: bool) -> Callable:
     """Generate an rsync function."""
 
     def rsync_all_files(item):
@@ -87,7 +91,7 @@ def generate_rsync_component(local: bool) -> "Callable":
 
 def generate_correlate_component(
         dispersion_measure: float, ntint: int, corr_ch0: dict, npol: int,
-        ncorrfiles: "Manager().Value") -> "Callable":
+        ncorrfiles: 'Value') -> Callable:
     """Generate a correlator function."""
 
     def correlate(vfile):
@@ -95,15 +99,15 @@ def generate_correlate_component(
         while ncorrfiles.value > 2:
             time.sleep(10)
 
-        corr = re.findall(r'corr\d\d', vfile)[0]
-        if not os.path.exists('{0}.corr'.format(vfile)):
+        corr = re.findall(r"corr\d\d", vfile)[0]
+        if not os.path.exists(f'{vfile}.corr'):
             first_channel_MHz = corr_ch0[corr]
             command = (
-                '/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit_dev '
-                f'-i {vfile} -o {vfile}.corr -t {ntint} -c {first_channel_MHz} '
-                f'-d delays.dat {"" if npol==4 else "-a"}')
+                "/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit_dev "
+                f"-i {vfile} -o {vfile}.corr -t {ntint} -c {first_channel_MHz} "
+                f"-d delays.dat {'' if npol==4 else '-a'}")
             if dispersion_measure is not None:
-                command += f' -m {dispersion_measure}'
+                command += f" -m {dispersion_measure}"
             print(command)
             process = subprocess.Popen(
                 command,
@@ -124,13 +128,12 @@ def generate_correlate_component(
     return correlate
 
 def generate_uvh5_component(
-        candname: str, corrdir: str, declination: "Manager().Value", vis_params: dict,
-        start_offset: int, end_offset: int, ncorrfiles: "Manager().Value") -> "Callable":
+        candname: str, corrdir: str, declination: 'Manager().Value', vis_params: dict,
+        start_offset: int, end_offset: int, ncorrfiles: 'Manager().Value') -> Callable:
     """Generate a uvh5 writer."""
 
     def write_uvh5(corrfile):
         """Write correlated data to a uvh5 file."""
-        print(corrfile, type(corrfile))
         _uvh5name = generate_uvh5(
             f'{corrdir}/{candname}',
             declination.value*u.deg,
@@ -160,7 +163,7 @@ def process_join(targetfn):
     return inner
 
 def generate_declination_component(
-        declination: "Value", tstart: "astropy.time.Time") -> "Callable":
+        declination: 'Value', tstart: 'astropy.time.Time') -> Callable:
     """Generate a pipeline component to get the declination from etcd."""
 
     def get_declination_etcd():
@@ -178,14 +181,14 @@ def generate_delay_table(vis_params, reftime, declination):
         vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'],
         vis_params['antenna_order'])
     total_delay_string = '\n'.join(total_delay.flatten().astype('str'))+'\n'
-    with open("delays.dat", "w", encoding='utf-8') as f:
+    with open('delays.dat', 'w', encoding='utf-8') as f:
         f.write(total_delay_string)
 
 def initialize_system():
     """Set system parameters needed in voltage to ms converter."""
     params = load_params(PARAMFILE)
     SystemSetup = namedtuple(
-        "SystemSetup", "T3dir archivedir corrdir msdir start_time_offset reffreq_GHz corr_ch0_MHz")
+        'SystemSetup', 'T3dir archivedir corrdir msdir start_time_offset reffreq_GHz corr_ch0_MHz')
     start_time_offset = params['burst_start_s']*u.s
     corr_ch0_MHz = {corr: 1e3*params['f0_GHz']+params['deltaf_MHz']*corr_ch0
                     for corr, corr_ch0 in params['ch0'].items()}
