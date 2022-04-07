@@ -1,14 +1,26 @@
 """Calibrate and image measurement sets from T3 visibilities.
 """
+import os
 import yaml
 import numpy as np
 from pkg_resources import resource_filename
+import requests
+from PIL import Image
+from io import BytesIO
+
+import numpy
 import matplotlib.pyplot as plt
 import astropy.units as u
 from astropy.coordinates import Angle
+from astropy.wcs import WCS
+from astropy.table import Table
+from astropy.io import fits
+from astropy.visualization import PercentileInterval, AsinhStretch
 import casatools as cc
 from casacore.tables import table
+from casatasks import exportfits
 from dsacalib.ms_io import extract_vis_from_ms
+
 from dsaT3.utils import load_params
 
 PARAMFILE = resource_filename('dsaT3', 'data/T3_parameters.yaml')
@@ -238,3 +250,192 @@ def apply_calibration(msname: str, gains: np.ndarray, antenna_order: list):
     with table('{0}.ms'.format(msname), readonly=False) as tb:
         tb.putcol('CORRECTED_DATA', data)
         tb.putcol('FLAG', flags)
+
+def get_ps1_images(ra: float, dec: float, size: int = 240, filters: str = "grizy") -> "Table":
+    """Query ps1filenames.py service to get a list of images
+    
+    ra, dec = position in degrees
+    size = image size in pixels (0.25 arcsec/pixel)
+    filters = string with filters to include
+    Returns a table with the results
+    """
+    
+    service = "https://ps1images.stsci.edu/cgi-bin/ps1filenames.py"
+    url = ("{service}?ra={ra}&dec={dec}&size={size}&format=fits"
+           "&filters={filters}").format(**locals())
+    table = Table.read(url, format='ascii')
+    return table
+
+
+def get_ps1_url(
+        ra: float, dec: float, size: int = 240, output_size: int = None, filters: str = "grizy",
+        format: str = "jpg", color: bool = False) -> str:
+    """Get URL for images in the table
+    
+    ra, dec = position in degrees
+    size = extracted image size in pixels (0.25 arcsec/pixel)
+    output_size = output (display) image size in pixels (default = size).
+                  output_size has no effect for fits format images.
+    filters = string with filters to include
+    format = data format (options are "jpg", "png" or "fits")
+    color = if True, creates a color image (only for jpg or png format).
+            Default is return a list of URLs for single-filter grayscale images.
+    Returns a string with the URL
+    """
+    
+    if color and format == "fits":
+        raise ValueError("color images are available only for jpg or png formats")
+    if format not in ("jpg","png","fits"):
+        raise ValueError("format must be one of jpg, png, fits")
+    table = get_ps1_images(ra,dec,size=size,filters=filters)
+    url = ("https://ps1images.stsci.edu/cgi-bin/fitscut.cgi?"
+           "ra={ra}&dec={dec}&size={size}&format={format}").format(**locals())
+    if output_size:
+        url = url + "&output_size={}".format(output_size)
+    # sort filters from red to blue
+    flist = ["yzirg".find(x) for x in table['filter']]
+    table = table[numpy.argsort(flist)]
+    if color:
+        if len(table) > 3:
+            # pick 3 filters
+            table = table[[0,len(table)//2,len(table)-1]]
+        for i, param in enumerate(["red","green","blue"]):
+            url = url + "&{}={}".format(param,table['filename'][i])
+    else:
+        urlbase = url + "&red="
+        url = []
+        for filename in table['filename']:
+            url.append(urlbase+filename)
+    return url
+
+
+def get_ps1_colorim(
+        ra: float, dec: float, size: int = 240, output_size: int = None, filters: str = "grizy",
+        format: str = "jpg") -> "image":
+    
+    """Get color image at a sky position
+    
+    ra, dec = position in degrees
+    size = extracted image size in pixels (0.25 arcsec/pixel)
+    output_size = output (display) image size in pixels (default = size).
+                  output_size has no effect for fits format images.
+    filters = string with filters to include
+    format = data format (options are "jpg", "png")
+    Returns the image
+    """
+    
+    if format not in ("jpg", "png"):
+        raise ValueError("format must be jpg or png")
+    url = get_ps1_url(
+        ra, dec, size=size, filters=filters, output_size=output_size, format=format, color=True)
+    r = requests.get(url)
+    im = Image.open(BytesIO(r.content))
+    return im
+
+
+def get_ps1_grayim(
+        ra: float, dec: float, size: int = 240, output_size: int = None, filter: str = "g",
+        format: str = "jpg") -> "image":
+    
+    """Get grayscale image at a sky position
+    
+    ra, dec = position in degrees
+    size = extracted image size in pixels (0.25 arcsec/pixel)
+    output_size = output (display) image size in pixels (default = size).
+                  output_size has no effect for fits format images.
+    filter = string with filter to extract (one of grizy)
+    format = data format (options are "jpg", "png")
+    Returns the image
+    """
+    
+    if format not in ("jpg","png"):
+        raise ValueError("format must be jpg or png")
+    if filter not in list("grizy"):
+        raise ValueError("filter must be one of grizy")
+    url = get_ps1_url(ra,dec,size=size,filters=filter,output_size=output_size,format=format)
+    r = requests.get(url[0])
+    im = Image.open(BytesIO(r.content))
+    return im
+
+def load_radio_image(imname: str) -> tuple:
+    """Extract a radio image from a fits image."""
+    with fits.open(imname) as fh:
+        hdu = fh[0]
+        wcs = WCS(hdu.header)
+        image = hdu.data
+
+    return image[0, 0, :, :], wcs
+
+def load_radio_casa_image(imname: str) -> "np.ndarray":
+    ia = cc.image()
+    ia.open(imname)
+    dd = ia.summary()
+    npixx = dd['shape'][0]
+    imvals = ia.getchunk(0, int(npixx))[:, :, 0, 0]
+    return imvals
+
+def get_centre_coordinates(imname: str) -> tuple:
+    """Extract centre coordinates and size of a casa image reconstruction.
+
+    returns (ra_centre, dec_centre, size), all astropy quantities
+    """
+    ia = cc.image()
+    ia.open(imname)
+    dd = ia.summary()
+    ia.close()
+    npixx = dd['shape'][0]
+    raref, decref = (
+        Angle('{0}{1}'.format(dd['refval'][0], dd['axisunits'][0])),
+        Angle('{0}{1}'.format(dd['refval'][1], dd['axisunits'][1]))
+    )
+    ralist, declist = (
+        raref +
+        Angle(f"{dd['incr'][0]}{dd['axisunits'][0]}")*(np.arange(npixx)-dd['refpix'][0])/np.cos(decref),
+        decref +
+        Angle(f"{dd['incr'][1]}{dd['axisunits'][1]}")*(np.arange(npixx)-dd['refpix'][1]),
+    )
+    ra_centre, dec_centre = np.mean(ralist[npixx//2-1:npixx//2+1]), np.mean(declist[npixx//2-1:npixx//2+1])
+    size = Angle(f"{dd['incr'][1]}{dd['axisunits'][1]}")*npixx
+
+    return ra_centre, dec_centre, size
+
+def get_fits_image(ra_centre: "Quantitiy", dec_centre: "Quantity", size: "Quantity") -> "np.ndarray":
+    """Extract the ps1 fits image from the online server."""
+    fitsurl = get_ps1_url(
+    ra_centre.to_value(u.deg), dec_centre.to_value(u.deg), size=int(round(size.to_value(u.arcsecond)*4)), filters="i", format="fits")
+
+    with fits.open(fitsurl[0]) as fh:
+        hdu = fh[0]
+        wcs = WCS(hdu.header)
+        image = hdu.data
+
+    image[np.isnan(image)] = 0.0
+    transform = AsinhStretch() + PercentileInterval(99.5)
+    image = transform(image)
+    return image, wcs
+
+def plot_contours_on_ps1(imname: str, resize_factor: float = None) -> None:
+    """Plot radio contours over a ps1 image of the same region."""
+    # TODO: get image coordinates from the fits file so we don't need the image file too
+    fits_imname = imname.replace(".image", ".fits")
+    if not os.path.exists(fits_imname):
+        exportfits(imname, fits_imname)
+
+    radio_image, radiowcs = load_radio_image(fits_imname)
+    if np.isnan(np.nanmean(radio_image)):
+        radio_image = load_radio_casa_image(imname)
+        radiowcs = None
+    ra_centre, dec_centre, size = get_centre_coordinates(imname)
+    ps1_image, wcs = get_fits_image(ra_centre, dec_centre, size)
+
+    immax = np.nanmax(radio_image)
+    contours = [0.01, 0.1, 0.25, 0.5, 0.75, 0.90, 0.99]
+
+    fig, ax = plt.subplots(1, 1, figsize=(12, 6), subplot_kw={"projection": radiowcs, "slices": ('x', 'y', 0, 0)})
+    ax.imshow(ps1_image, origin="lower", transform=ax.get_transform(wcs))
+    ax.contour(radio_image, colors="white", levels=[immax*contour for contour in contours])
+    if resize_factor:
+        x1, x2 = ax.get_xlim()
+        y1, y2 = ax.get_ylim()
+        ax.set_xlim((x1+x2)/2-(x2-x1)*resize_factor, (x1+x2)/2+(x2-x1)*resize_factor)
+        ax.set_ylim((y1+y2)/2-(y2-y1)*resize_factor, (y1+y2)/2+(y2-y1)*resize_factor)
