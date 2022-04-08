@@ -145,7 +145,7 @@ def set_default_if_unset(start_offset: int, end_offset: int) -> tuple:
 
 def get_reftime() -> "Time":
     """Get the reference time used in the real-time correlator."""
-    conf = dsc.Conf()
+    conf = dsc.Conf(use_etcd=True)
     refmjd = conf.get('fringe')['refmjd']
     reftime = Time(refmjd, format='mjd')
     return reftime
