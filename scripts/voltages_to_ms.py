@@ -168,19 +168,19 @@ def parse_commandline_arguments() -> 'argparse.Namespace':
         '--ntint',
         type=int,
         nargs='?',
-        default=8,
+        default=32,
         help="number of native time bins to integrate during correlation")
     parser.add_argument(
         '--startoffset',
         type=int,
         nargs='?',
-        default=1716,
+        default=469,
         help="nbins from beginning of correlated data to start writing to ms")
     parser.add_argument(
         '--stopoffset',
         type=int,
         nargs='?',
-        default=1748,
+        default=485,
         help='number of bins from end of correlation to write to ms')
     parser.add_argument(
         '--dm',
