@@ -78,13 +78,15 @@ def voltages_to_ms(
     corr_queue = JoinableQueue()
     uvh5_queue = JoinableQueue()
 
+    reftime = get_reftime()
+
     # Generate the table needed by the correlator
     get_declination_etcd = process_join(generate_declination_component(
         declination, cand.time))
     _ = get_declination_etcd()
 
     # generate_delay_table(uvh5params.visparams, corrparams.reftime, declination.value)
-    generate_delay_table(uvh5params.visparams, get_reftime(), declination.value)
+    generate_delay_table(uvh5params.visparams, reftime, declination.value)
 
     rsync_all_files = pipeline_component(
         generate_rsync_component(cand.local),
