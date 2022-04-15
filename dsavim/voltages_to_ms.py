@@ -103,7 +103,7 @@ def generate_correlate_component(
         if not os.path.exists(f"{vfile}.corr"):
             first_channel_MHz = corr_ch0[corr]
             command = (
-                "/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit_dev "
+                "/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit "
                 f"-i {vfile} -o {vfile}.corr -t {ntint} -c {first_channel_MHz} "
                 f"-d delays.dat {'' if npol==4 else '-a'}")
             if dispersion_measure is not None:
