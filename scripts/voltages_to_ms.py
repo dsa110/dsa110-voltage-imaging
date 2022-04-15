@@ -174,13 +174,13 @@ def parse_commandline_arguments() -> 'argparse.Namespace':
         '--startoffset',
         type=int,
         nargs='?',
-        default=469,
+        default=453,
         help="nbins from beginning of correlated data to start writing to ms")
     parser.add_argument(
         '--stopoffset',
         type=int,
         nargs='?',
-        default=485,
+        default=501,
         help='number of bins from end of correlation to write to ms')
     parser.add_argument(
         '--dm',
