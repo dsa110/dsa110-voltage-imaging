@@ -32,6 +32,7 @@ __all__ = [
 
 PARAMFILE = resource_filename('dsavim', 'data/voltage_corr_parameters.yaml')
 
+
 def pipeline_component(targetfn, inqueue, outqueue=None):
     """Generate a component of the pipeline."""
     @wraps(targetfn)
@@ -155,6 +156,7 @@ def process_join(targetfn):
         return process
     return inner
 
+
 def generate_declination_component(
         declination: 'Value', tstart: 'astropy.time.Time') -> Callable:
     """Generate a pipeline component to get the declination from etcd."""
@@ -167,6 +169,7 @@ def generate_declination_component(
 
     return get_declination_etcd
 
+
 def generate_delay_table(vis_params, reftime, declination):
     """Generate a table of geometric and cable delays for the correlator."""
     _buvw, ant_bw = calculate_uvw_and_geodelay(vis_params, reftime, declination*u.deg)
@@ -176,6 +179,7 @@ def generate_delay_table(vis_params, reftime, declination):
     total_delay_string = '\n'.join(total_delay.flatten().astype('str'))+'\n'
     with open('delays.dat', 'w', encoding='utf-8') as f:
         f.write(total_delay_string)
+
 
 def initialize_system():
     """Set system parameters needed in voltage to ms converter."""
@@ -190,6 +194,7 @@ def initialize_system():
         params['T3dir'], params['archivedir'], params['corrdir'], params['msdir'],
         start_time_offset, params['reffreq_GHz'], corr_ch0_MHz)
     return system_setup
+
 
 def initialize_candidate(candname, datestring, system_setup, dispersion_measure=None):
     """Set candidate parameters using information in the json header."""
@@ -218,6 +223,7 @@ def initialize_candidate(candname, datestring, system_setup, dispersion_measure=
     cand = Candidate(candname, tstart, dispersion_measure, voltagefiles, headerfile, local)
     return cand
 
+
 def initialize_correlator(fullpol, ntint, cand, system_setup):
     """Set correlator parameters."""
     corrlist = list(system_setup.corr_ch0_MHz.keys())
@@ -230,6 +236,7 @@ def initialize_correlator(fullpol, ntint, cand, system_setup):
     correlator_params = CorrelatorParameters(reftime, npol, nfint, ntint, corrfiles)
     return correlator_params
 
+
 def initialize_uvh5(corrparams, cand, system_setup, outrigger_delays=None):
     """Set parameters for writing uvh5 files."""
     corrlist = list(system_setup.corr_ch0_MHz.keys())
@@ -239,6 +246,7 @@ def initialize_uvh5(corrparams, cand, system_setup, outrigger_delays=None):
     UVH5Parameters = namedtuple('UVH5', 'files visparams')
     uvh5_params = UVH5Parameters(uvh5files, visparams)
     return uvh5_params
+
 
 def initialize_vis_params(corrparams, cand, outrigger_delays=None):
     """Set parameters that describe the visbilities produced by the correlator.
@@ -261,6 +269,7 @@ def initialize_vis_params(corrparams, cand, outrigger_delays=None):
     vis_params['nfint'] = corrparams.nfint
     vis_params['ntint'] = corrparams.ntint
     return vis_params
+
 
 def parse_visibility_parameters(
         params: dict, tstart: 'astropy.time.Time', ntint: int) -> dict:
@@ -320,6 +329,7 @@ def parse_visibility_parameters(
         'nchan_corr': params['nchan_corr']}
     return vis_params
 
+
 def get_cable_delays(outrigger_delays: dict, bname: list) -> np.ndarray:
     """Calculate cable delays from the measured outrigger cable delays.
 
@@ -343,6 +353,7 @@ def get_cable_delays(outrigger_delays: dict, bname: list) -> np.ndarray:
         delays[i] = outrigger_delays.get(int(ant1), 0)-\
                     outrigger_delays.get(int(ant2), 0)
     return delays
+
 
 def get_blen(antennas: list) -> tuple:
     """Gets the baseline lengths for a subset of antennas.
