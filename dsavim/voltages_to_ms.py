@@ -18,6 +18,7 @@ from antpos.utils import get_itrf
 from dsautils.coordinates import get_declination, get_elevation
 import dsacalib.constants as ct
 
+from dsavim.dedisperse import get_dispersion_delay
 from dsavim.generate_uvh5 import calculate_uvw_and_geodelay, get_total_delay
 from dsavim.utils import rsync_file, load_params, get_tstart_from_json, get_DM_from_json
 from dsavim.generate_uvh5 import generate_uvh5
@@ -252,6 +253,11 @@ def initialize_vis_params(corrparams, cand, outrigger_delays=None):
     T3params = load_params(PARAMFILE)
     if outrigger_delays:
         T3params['outrigger_delays'] = outrigger_delays
+
+    # We want to change the time here using the dispersion measure
+    dispersion_delay = get_dispersion_delay(1.405, cand.dm, 1.530)
+    tstart = cand.time + dispersion_delay*u.ms
+
     vis_params = parse_visibility_parameters(T3params, cand.time, corrparams.ntint)
     vis_params['tref'] = corrparams.reftime
     vis_params['npol'] = corrparams.npol
