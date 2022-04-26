@@ -4,6 +4,7 @@ Convert voltage files to measurement sets.
 import os
 from multiprocessing import Process, Value, JoinableQueue
 import argparse
+from functools import partial
 
 from astropy.time import Time
 import astropy.units as u
@@ -89,21 +90,22 @@ def voltages_to_ms(
     generate_delay_table(uvh5params.visparams, reftime, declination.value)
 
     rsync_all_files = pipeline_component(
-        generate_rsync_component(cand.local),
+        partial(rsync_component, local=cand.local),
         rsync_queue,
         corr_queue)
 
     correlate = pipeline_component(
-        generate_correlate_component(
-            cand.dm, corrparams.ntint, system_setup.corr_ch0_MHz,
-            corrparams.npol, ncorrfiles),
+        partial(
+            correlate_component, dispersion_measure=cand.dm, ntint=corrparams.ntint,
+            corr_ch0=system_setup.corr_ch0_MHz, npol=corrparams.npol, ncorrfiles=ncorrfiles),
         corr_queue,
         uvh5_queue)
 
     write_uvh5 = pipeline_component(
-        generate_uvh5_component(
-            cand.name, system_setup.corrdir, declination, uvh5params.visparams,
-            start_offset, end_offset, ncorrfiles),
+        partial(
+            uvh5_component, candname=cand.name, corrdir=system_setup.corrdir,
+            declination=declination, vis_params=uvh5params.visparams, start_offset=start_offset,
+            end_offset=end_offset, ncorrfiles=ncorrfiles),
         uvh5_queue)
 
     processes = [

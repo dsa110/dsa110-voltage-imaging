@@ -1,7 +1,7 @@
 """Utilties for converting T3 voltage dumps to measurement sets."""
 
 from collections import namedtuple
-from typing import Callable
+from typing import Callable, Tuple
 import time
 import re
 import os
@@ -76,79 +76,70 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
 
     return inner
 
-def generate_rsync_component(local: bool) -> Callable:
-    """Generate an rsync function."""
 
-    def rsync_all_files(item):
-        """Rsync or copy a file."""
-        srcfile, vfile = item
-        if not os.path.exists(vfile):
-            if not local:
-                rsync_file(srcfile, vfile)
-            else:
-                os.symlink(srcfile, vfile)
-        return vfile
-    return rsync_all_files
-
-def generate_correlate_component(
-        dispersion_measure: float, ntint: int, corr_ch0: dict, npol: int,
-        ncorrfiles: 'Value') -> Callable:
-    """Generate a correlator function."""
-
-    def correlate(vfile):
-        """Correlate a file."""
-        while ncorrfiles.value > 2:
-            time.sleep(10)
-
-        corr = re.findall(r"corr\d\d", vfile)[0]
-        if not os.path.exists(f"{vfile}.corr"):
-            first_channel_MHz = corr_ch0[corr]
-            command = (
-                "/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit "
-                f"-i {vfile} -o {vfile}.corr -t {ntint} -c {first_channel_MHz} "
-                f"-d delays.dat {'' if npol==4 else '-a'}")
-            if dispersion_measure is not None:
-                command += f" -m {dispersion_measure}"
-            print(command)
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                shell=True)
-            proc_stdout = str(process.communicate()[0].strip())
-            print(proc_stdout)
-
-        corrfile = f"{vfile}.corr"
-
-        with ncorrfiles.get_lock():
-            ncorrfiles.value += 1
+def rsync_component(item: Tuple[str], local: bool) -> str:
+    """Rsync or copy a file."""
+    srcfile, vfile = item
+    if not os.path.exists(vfile):
+        if not local:
+            rsync_file(srcfile, vfile)
+        else:
+            os.symlink(srcfile, vfile)
+    return vfile
 
 
-        return corrfile
+def correlate_component(
+        vfile: str, dispersion_measure: float, ntint: int, corr_ch0: dict, npol: int,
+        ncorrfiles: 'Value') -> str:
+    """Correlate a file."""
+    while ncorrfiles.value > 2:
+        time.sleep(10)
 
-    return correlate
+    corr = re.findall(r"corr\d\d", vfile)[0]
+    if not os.path.exists(f"{vfile}.corr"):
+        first_channel_MHz = corr_ch0[corr]
+        command = (
+            "/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit "
+            f"-i {vfile} -o {vfile}.corr -t {ntint} -c {first_channel_MHz} "
+            f"-d delays.dat {'' if npol==4 else '-a'}")
+        if dispersion_measure is not None:
+            command += f" -m {dispersion_measure}"
+        print(command)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            shell=True)
+        proc_stdout = str(process.communicate()[0].strip())
+        print(proc_stdout)
 
-def generate_uvh5_component(
-        candname: str, corrdir: str, declination: 'Manager().Value', vis_params: dict,
-        start_offset: int, end_offset: int, ncorrfiles: 'Manager().Value') -> Callable:
-    """Generate a uvh5 writer."""
+    corrfile = f"{vfile}.corr"
 
-    def write_uvh5(corrfile):
-        """Write correlated data to a uvh5 file."""
-        _uvh5name = generate_uvh5(
-            f"{corrdir}/{candname}",
-            declination.value*u.deg,
-            corrfile=corrfile,
-            vis_params=vis_params,
-            start_offset=start_offset,
-            end_offset=end_offset
-        )
+    with ncorrfiles.get_lock():
+        ncorrfiles.value += 1
 
-        os.remove(corrfile)
-        with ncorrfiles.get_lock():
-            ncorrfiles.value -= 1
 
-    return write_uvh5
+    return corrfile
+
+
+def uvh5_component(
+        corrfile: str, candname: str, corrdir: str, declination: 'Manager().Value',
+        vis_params: dict, start_offset: int, end_offset: int,
+        ncorrfiles: 'Manager().Value') -> None:
+    """Write correlated data to a uvh5 file."""
+    _uvh5name = generate_uvh5(
+        f"{corrdir}/{candname}",
+        declination.value*u.deg,
+        corrfile=corrfile,
+        vis_params=vis_params,
+        start_offset=start_offset,
+        end_offset=end_offset
+    )
+
+    os.remove(corrfile)
+    with ncorrfiles.get_lock():
+        ncorrfiles.value -= 1
+
 
 def process_join(targetfn):
     """Generate a function that starts and process and waits for it to complete."""
@@ -163,7 +154,7 @@ def process_join(targetfn):
         return process
     return inner
 
-def generate_declination_component(
+def declination_component(
         declination: 'Value', tstart: 'astropy.time.Time') -> Callable:
     """Generate a pipeline component to get the declination from etcd."""
 
@@ -249,14 +240,19 @@ def initialize_uvh5(corrparams, cand, system_setup, outrigger_delays=None):
     return uvh5_params
 
 def initialize_vis_params(corrparams, cand, outrigger_delays=None):
-    """Set parameters that describe the visbilities produced by the correlator."""
+    """Set parameters that describe the visbilities produced by the correlator.
+
+    The time is adjusted so that the dedispersed signal has the correct time
+    for the centre of the band.
+    """
     T3params = load_params(PARAMFILE)
     if outrigger_delays:
         T3params['outrigger_delays'] = outrigger_delays
 
-    # We want to change the time here using the dispersion measure
-    dispersion_delay = get_dispersion_delay(1.405, cand.dm, 1.530)
-    tstart = cand.time + dispersion_delay*u.ms
+    # Adjust the start time so that the dedispersed signal has the correct
+    # time for the centre of the band.
+    dispersion_delay = get_dispersion_delay_ms(1.405, cand.dm, 1.530)*u.ms
+    tstart = cand.time + dispersion_delay
 
     vis_params = parse_visibility_parameters(T3params, cand.time, corrparams.ntint)
     vis_params['tref'] = corrparams.reftime
