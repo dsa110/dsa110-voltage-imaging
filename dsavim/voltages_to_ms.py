@@ -37,6 +37,7 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
     @wraps(targetfn)
     def inner():
         """Process data from a queue."""
+        targetname = targetfn.__name__ if hasattr(targetfn, '__name__') else targetfn.func.__name__
         done = False
         while not done:
             # Get the next item
@@ -48,7 +49,7 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
                 continue
             except (EOFError, BrokenPipeError) as exc:
                 # Log and end gracefully if the queue is broken
-                print(f"{type(exc).__name__} error when accessing inqueue in {targetfn.__name__}")
+                print(f"{type(exc).__name__} error when accessing inqueue in {targetname}")
                 done = True
                 continue
 
@@ -61,13 +62,13 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
             # Pass the item on to the next queue
             if outqueue is not None:
                 try:
-                    print(f"{targetfn.__name__} sending {item} to queue")
+                    print(f"{targetname} sending {item} to queue")
                     outqueue.put(item)
                 except (EOFError, BrokenPipeError) as exc:
                     # Log and end gracefully if the queue is broken
                     print(
                         f"{type(exc).__name__} error when accessing outqueue "
-                        f"in {targetfn.__name__}")
+                        f"in {targetname}")
                     done = True
 
             inqueue.task_done()
