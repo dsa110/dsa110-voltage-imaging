@@ -154,7 +154,7 @@ def process_join(targetfn):
         return process
     return inner
 
-def declination_component(
+def generate_declination_component(
         declination: 'Value', tstart: 'astropy.time.Time') -> Callable:
     """Generate a pipeline component to get the declination from etcd."""
 
