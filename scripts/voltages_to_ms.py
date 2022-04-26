@@ -147,7 +147,7 @@ def set_default_if_unset(start_offset: int, end_offset: int) -> tuple:
 
 def get_reftime() -> "Time":
     """Get the reference time used in the real-time correlator."""
-    conf = dsc.Conf(use_etcd=True)
+    conf = dsc.Conf()
     refmjd = conf.get('fringe')['refmjd']
     reftime = Time(refmjd, format='mjd')
     return reftime
@@ -155,7 +155,8 @@ def get_reftime() -> "Time":
 def parse_commandline_arguments() -> 'argparse.Namespace':
     """Parse commandline arguments."""
     parser = argparse.ArgumentParser(
-        description="Correlate candidate voltage files.")
+        description="Correlate candidate voltage files.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         'candname',
         type=str,
@@ -176,13 +177,13 @@ def parse_commandline_arguments() -> 'argparse.Namespace':
         '--startoffset',
         type=int,
         nargs='?',
-        default=453,
+        default=444,
         help="nbins from beginning of correlated data to start writing to ms")
     parser.add_argument(
         '--stopoffset',
         type=int,
         nargs='?',
-        default=501,
+        default=508,
         help='number of bins from end of correlation to write to ms')
     parser.add_argument(
         '--dm',
