@@ -12,7 +12,7 @@ def load_params(paramfile: str) -> dict:
     """Load parameters for voltage correlation from a yaml file."""
     with open(paramfile) as yamlf:
         voltage_corr_params = yaml.load(yamlf, Loader=yaml.FullLoader)['voltage_corr']
-    conf = cnf.Conf(use_etcd=True)
+    conf = cnf.Conf()
     corrconf = conf.get('corr')
     mfsconf = conf.get('fringe')
     voltage_corr_params['ch0'] = corrconf['ch0']
