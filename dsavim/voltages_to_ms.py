@@ -24,8 +24,8 @@ from dsavim.utils import rsync_file, load_params, get_tstart_from_json, get_DM_f
 from dsavim.generate_uvh5 import generate_uvh5
 
 __all__ = [
-    'pipeline_component', 'generate_rsync_component', 'generate_correlate_component',
-    'generate_uvh5_component', 'process_join', 'generate_declination_component',
+    'pipeline_component', 'rsync_component', 'correlate_component',
+    'uvh5_component', 'process_join', 'generate_declination_component',
     'generate_delay_table', 'initialize_system', 'initialize_candidate', 'initialize_correlator',
     'initialize_uvh5', 'initialize_vis_params', 'parse_visibility_parameters', 'get_cable_delays',
     'get_blen']
