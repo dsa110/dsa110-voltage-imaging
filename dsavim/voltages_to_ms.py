@@ -18,7 +18,7 @@ from antpos.utils import get_itrf
 from dsautils.coordinates import get_declination, get_elevation
 import dsacalib.constants as ct
 
-from dsavim.dedisperse import get_dispersion_delay
+from dsavim.dedisperse import get_dispersion_delay_ms
 from dsavim.generate_uvh5 import calculate_uvw_and_geodelay, get_total_delay
 from dsavim.utils import rsync_file, load_params, get_tstart_from_json, get_DM_from_json
 from dsavim.generate_uvh5 import generate_uvh5
