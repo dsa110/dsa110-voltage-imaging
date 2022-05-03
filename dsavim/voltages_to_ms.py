@@ -8,11 +8,11 @@ import os
 from functools import wraps
 
 import subprocess
-from multiprocessing import Process
-import queue
 from pkg_resources import resource_filename
 import numpy as np
 import astropy.units as u
+from dask.distributed import Queue, Variable, Lock
+from asyncio import TimeoutError
 
 from antpos.utils import get_itrf
 from dsautils.coordinates import get_declination, get_elevation
@@ -28,7 +28,7 @@ __all__ = [
     'uvh5_component', 'process_join', 'generate_declination_component',
     'generate_delay_table', 'initialize_system', 'initialize_candidate', 'initialize_correlator',
     'initialize_uvh5', 'initialize_vis_params', 'parse_visibility_parameters', 'get_cable_delays',
-    'get_blen']
+    'get_blen', 'ProtectedVariable']
 
 PARAMFILE = resource_filename('dsavim', 'data/voltage_corr_parameters.yaml')
 
@@ -45,13 +45,8 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
             try:
                 item = inqueue.get(timeout=2)
                 assert item
-            except queue.Empty:
-                time.sleep(10)
-                continue
-            except (EOFError, BrokenPipeError) as exc:
-                # Log and end gracefully if the queue is broken
-                print(f"{type(exc).__name__} error when accessing inqueue in {targetname}")
-                done = True
+            except TimeoutError:
+                time.sleep(8)
                 continue
 
             # Process the item
@@ -72,10 +67,6 @@ def pipeline_component(targetfn, inqueue, outqueue=None):
                         f"in {targetname}")
                     done = True
 
-            inqueue.task_done()
-        inqueue.join() # Make sure all items are processed
-        time.sleep(1) # Make sure all items make it to outqueue
-
     return inner
 
 
@@ -92,9 +83,9 @@ def rsync_component(item: Tuple[str], local: bool) -> str:
 
 def correlate_component(
         vfile: str, dispersion_measure: float, ntint: int, corr_ch0: dict, npol: int,
-        ncorrfiles: 'Value') -> str:
+        ncorrfiles: 'ProtectedVariable') -> str:
     """Correlate a file."""
-    while ncorrfiles.value > 2:
+    while ncorrfiles.get() > 2:
         time.sleep(10)
 
     corr = re.findall(r"corr\d\d", vfile)[0]
@@ -118,20 +109,19 @@ def correlate_component(
     corrfile = f"{vfile}.corr"
 
     with ncorrfiles.get_lock():
-        ncorrfiles.value += 1
-
+        ncorrfiles.set(ncorrfiles.get() + 1)
 
     return corrfile
 
 
 def uvh5_component(
-        corrfile: str, candname: str, corrdir: str, declination: 'Manager().Value',
+        corrfile: str, candname: str, corrdir: str, declination: float,
         vis_params: dict, start_offset: int, end_offset: int,
         ncorrfiles: 'Manager().Value') -> None:
     """Write correlated data to a uvh5 file."""
     _uvh5name = generate_uvh5(
         f"{corrdir}/{candname}",
-        declination.value*u.deg,
+        declination*u.deg,
         corrfile=corrfile,
         vis_params=vis_params,
         start_offset=start_offset,
@@ -140,36 +130,12 @@ def uvh5_component(
 
     os.remove(corrfile)
     with ncorrfiles.get_lock():
-        ncorrfiles.value -= 1
+        ncorrfiles.set(ncorrfiles.get() - 1)
 
 
-def process_join(targetfn):
-    """Generate a function that starts and process and waits for it to complete."""
-
-    def inner():
-        """Start a process and then wait for it to complete."""
-        process = Process(
-            target=targetfn,
-            daemon=True)
-        process.start()
-        process.join()
-        return process
-
-    return inner
-
-
-def generate_declination_component(
-        declination: 'Value', tstart: 'astropy.time.Time') -> Callable:
-    """Generate a pipeline component to get the declination from etcd."""
-
-    def get_declination_etcd():
-        """Look up the declination from etcd."""
-        with declination.get_lock():
-            declination.value = get_declination(
-                get_elevation(tstart)
-            ).to_value(u.deg)
-
-    return get_declination_etcd
+def get_declination_etcd():
+    """Look up the declination from etcd."""
+    return get_declination(get_elevation(tstart)).to_value(u.deg)
 
 
 def generate_delay_table(vis_params, reftime, declination):
@@ -198,7 +164,6 @@ def initialize_system():
     return system_setup
 
 
-@process_join
 def load_params(paramfile: str) -> dict:
     """Load parameters for voltage correlation from a yaml file."""
     with open(paramfile) as yamlf:
@@ -414,3 +379,28 @@ def get_blen(antennas: list) -> tuple:
             )]
             k += 1
     return blen, bname
+
+
+class ProtectedVariable():
+    """A protected variable with variable and lock managed by dask"""
+
+    def __init__(self, name, initial_value=None):
+        self.name = name
+        self.variable = Variable(name)
+        self.lock = Lock(name)
+        self.variable.set(initial_value)
+
+    @contextmanager
+    def _get_lock():
+        try:
+            assert self.lock.acquire()
+            yield self.variable
+        finally:
+            self.lock.release()
+
+    def get():
+        return self.variable.get()
+
+    def set(value):
+        with self._get_lock():
+            self.variable.set(value)

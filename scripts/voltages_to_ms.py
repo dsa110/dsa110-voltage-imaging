@@ -6,6 +6,7 @@ from multiprocessing import Process, Value, JoinableQueue
 import argparse
 from functools import partial
 
+from dask.distributed import Client, Variable
 from astropy.time import Time
 
 import dsautils.cnf as dsc
@@ -75,61 +76,44 @@ def voltages_to_ms(
     uvh5params = initialize_uvh5(corrparams, cand, system_setup, outrigger_delays)
 
     # Initialize the process manager, locks, values, and queues
-    ncorrfiles = Value('i', 0, lock=True)
-    declination = Value('f', -100., lock=True)
-    rsync_queue = JoinableQueue()
-    corr_queue = JoinableQueue()
-    uvh5_queue = JoinableQueue()
+    ncorrfiles = ProtectedVariable("ncorrfiles", 0)
+    # rsync_queue = Queue()
+    # corr_queue = Queue()
+    # uvh5_queue = Queue()
 
     reftime = get_reftime()
+    declination = get_declination_etcd()
 
-    # Generate the table needed by the correlator
-    get_declination_etcd = process_join(generate_declination_component(
-        declination, cand.time))
-    _ = get_declination_etcd()
+    generate_delay_table(uvh5params.visparams, reftime, declination)
 
-    # generate_delay_table(uvh5params.visparams, corrparams.reftime, declination.value)
-    generate_delay_table(uvh5params.visparams, reftime, declination.value)
-
-    rsync_all_files = pipeline_component(
-        partial(rsync_component, local=cand.local),
-        rsync_queue,
-        corr_queue)
-
-    correlate = pipeline_component(
-        partial(
-            correlate_component, dispersion_measure=cand.dm, ntint=corrparams.ntint,
-            corr_ch0=system_setup.corr_ch0_MHz, npol=corrparams.npol, ncorrfiles=ncorrfiles),
-        corr_queue,
-        uvh5_queue)
-
-    write_uvh5 = pipeline_component(
-        partial(
+    rsync_all_files = partial(rsync_component, local=cand.local)
+    correlate = partial(
+        correlate_component, dispersion_measure=cand.dm, ntint=corrparams.ntint,
+        corr_ch0=system_setup.corr_ch0_MHz, npol=corrparams.npol, ncorrfiles=ncorrfiles)
+    write_uvh5 = partial(
             uvh5_component, candname=cand.name, corrdir=system_setup.corrdir,
             declination=declination, vis_params=uvh5params.visparams, start_offset=start_offset,
-            end_offset=end_offset, ncorrfiles=ncorrfiles),
-        uvh5_queue)
+            end_offset=end_offset, ncorrfiles=ncorrfiles)
 
-    processes = [
-        Process(target=rsync_all_files, daemon=True),
-        Process(target=correlate, daemon=True),
-        Process(target=write_uvh5, daemon=True)]
 
-    # Populate rsync queue (the entry queue in our pipeline)
-    # We only need to do this if the corresponding hdf5 file hasn't
-    # been created already.
+    # # Populate rsync queue (the entry queue in our pipeline)
+    # # We only need to do this if the corresponding hdf5 file hasn't
+    # # been created already.
+    # for i, filename in enumerate(cand.voltagefiles):
+    #     if not os.path.exists(uvh5params.files[i]):
+    #         rsync_queue.put((filename, corrparams.files[i]))
+    # rsync_queue.put('END')
+
+
+    futures = []
     for i, filename in enumerate(cand.voltagefiles):
         if not os.path.exists(uvh5params.files[i]):
-            rsync_queue.put([filename, corrparams.files[i]])
-    rsync_queue.put('END')
+            rsync_future = client.submit(rsync_all_files, filename)
+            corr_future = client.submit(correlate, rsync_future)
+            write_uvh5_future = client.submit(correlate, write_uvh5_future)
+            futures += [rsync_future, corr_future, write_uvh5_future]
+    wait(futures)
 
-    # Start all processes in the pipeline
-    for proc in processes:
-        proc.start()
-
-    # Wait for all processes to finish
-    for proc in processes:
-        proc.join()
 
     # Convert uvh5 files to a measurement set
     msname = f"{system_setup.msdir}{candname}"
