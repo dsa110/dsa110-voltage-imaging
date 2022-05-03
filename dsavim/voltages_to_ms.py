@@ -154,6 +154,7 @@ def process_join(targetfn):
         process.start()
         process.join()
         return process
+
     return inner
 
 
@@ -163,9 +164,10 @@ def generate_declination_component(
 
     def get_declination_etcd():
         """Look up the declination from etcd."""
-        declination.value = get_declination(
-            get_elevation(tstart)
-        ).to_value(u.deg)
+        with declination.get_lock():
+            declination.value = get_declination(
+                get_elevation(tstart)
+            ).to_value(u.deg)
 
     return get_declination_etcd
 
@@ -194,6 +196,23 @@ def initialize_system():
         params['T3dir'], params['archivedir'], params['corrdir'], params['msdir'],
         start_time_offset, params['reffreq_GHz'], corr_ch0_MHz)
     return system_setup
+
+
+@process_join
+def load_params(paramfile: str) -> dict:
+    """Load parameters for voltage correlation from a yaml file."""
+    with open(paramfile) as yamlf:
+        voltage_corr_params = yaml.load(yamlf, Loader=yaml.FullLoader)['voltage_corr']
+    conf = cnf.Conf()
+    corrconf = conf.get('corr')
+    mfsconf = conf.get('fringe')
+
+    voltage_corr_params['ch0'] = corrconf['ch0']
+    voltage_corr_params['f0_GHz'] = corrconf['f0_GHz']
+    voltage_corr_params['antennas'] = list(corrconf['antenna_order'].values())[:63]
+    voltage_corr_params['outrigger_delays'] = mfsconf['outrigger_delays']
+
+    return voltage_corr_params
 
 
 def initialize_candidate(candname, datestring, system_setup, dispersion_measure=None):

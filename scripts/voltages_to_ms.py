@@ -43,7 +43,10 @@ def voltages_to_ms(
     """
 
     start_offset, end_offset = set_default_if_unset(start_offset, end_offset)
+
+    # The following needs to happen in a subprocess
     system_setup = initialize_system()
+
     cand = initialize_candidate(candname, datestring, system_setup, dispersion_measure)
     corrparams = initialize_correlator(full_pol, ntint, cand, system_setup)
     if cand.time < Time("2022-03-17"):
