@@ -7,7 +7,6 @@ import argparse
 from functools import partial
 
 from astropy.time import Time
-import astropy.units as u
 
 import dsautils.cnf as dsc
 
@@ -49,24 +48,24 @@ def voltages_to_ms(
     corrparams = initialize_correlator(full_pol, ntint, cand, system_setup)
     if cand.time < Time("2022-03-17"):
         outrigger_delays = {
-           100:  1256,
-           101:  1106,
-           102:  1054,
-           103:  -212,
-           104:  2129,
-           105: 11992,
-           106:  8676,
-           107:  9498,
-           108: 10310,
-           109: 11438,
-           110: 15450,
-           111: 14414,
-           112: 15158,
-           113: 16622,
-           114: 18742,
-           115: 20298,
-           116:  3676,
-           117:  4376}
+            100:  1256,
+            101:  1106,
+            102:  1054,
+            103:  -212,
+            104:  2129,
+            105: 11992,
+            106:  8676,
+            107:  9498,
+            108: 10310,
+            109: 11438,
+            110: 15450,
+            111: 14414,
+            112: 15158,
+            113: 16622,
+            114: 18742,
+            115: 20298,
+            116:  3676,
+            117:  4376}
     else:
         outrigger_delays = None
 
