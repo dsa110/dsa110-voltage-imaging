@@ -8,6 +8,22 @@ from astropy.time import Time
 from dsautils import cnf
 
 
+def load_params(paramfile: str) -> dict:
+    """Load parameters for voltage correlation from a yaml file."""
+    with open(paramfile) as yamlf:
+        voltage_corr_params = yaml.load(yamlf, Loader=yaml.FullLoader)['voltage_corr']
+    conf = cnf.Conf()
+    corrconf = conf.get('corr')
+    mfsconf = conf.get('fringe')
+
+    voltage_corr_params['ch0'] = corrconf['ch0']
+    voltage_corr_params['f0_GHz'] = corrconf['f0_GHz']
+    voltage_corr_params['antennas'] = list(corrconf['antenna_order'].values())[:63]
+    voltage_corr_params['outrigger_delays'] = mfsconf['outrigger_delays']
+
+    return voltage_corr_params
+
+
 def get_tstart_from_json(headername: str) -> 'astropy.time.Time':
     """Extract the start time from the header file."""
     with open(headername) as jsonf:

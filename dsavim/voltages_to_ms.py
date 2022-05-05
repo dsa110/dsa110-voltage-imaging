@@ -164,22 +164,6 @@ def initialize_system():
     return system_setup
 
 
-def load_params(paramfile: str) -> dict:
-    """Load parameters for voltage correlation from a yaml file."""
-    with open(paramfile) as yamlf:
-        voltage_corr_params = yaml.load(yamlf, Loader=yaml.FullLoader)['voltage_corr']
-    conf = cnf.Conf()
-    corrconf = conf.get('corr')
-    mfsconf = conf.get('fringe')
-
-    voltage_corr_params['ch0'] = corrconf['ch0']
-    voltage_corr_params['f0_GHz'] = corrconf['f0_GHz']
-    voltage_corr_params['antennas'] = list(corrconf['antenna_order'].values())[:63]
-    voltage_corr_params['outrigger_delays'] = mfsconf['outrigger_delays']
-
-    return voltage_corr_params
-
-
 def initialize_candidate(candname, datestring, system_setup, dispersion_measure=None):
     """Set candidate parameters using information in the json header."""
     corrlist = list(system_setup.corr_ch0_MHz.keys())
