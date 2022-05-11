@@ -53,6 +53,8 @@ def voltages_to_ms(
 
     cand = initialize_candidate(candname, datestring, system_setup, dispersion_measure)
     corrparams = initialize_correlator(full_pol, ntint, cand, system_setup)
+
+    # TODO: Look up outrigger delays in influx instead of using these hardcoded values
     if cand.time < Time("2022-03-17"):
         outrigger_delays = {
             100:  1256,
@@ -78,19 +80,12 @@ def voltages_to_ms(
 
     uvh5params = initialize_uvh5(corrparams, cand, system_setup, outrigger_delays)
 
-    # Initialize the process manager, locks, values, and queues
-    # rsync_queue = Queue()
-    # corr_queue = Queue()
-    # uvh5_queue = Queue()
-
     reftime = get_reftime()
     declination = get_declination_etcd(cand.time)
 
     generate_delay_table(uvh5params.visparams, reftime, declination)
 
-
     client = Client(name="dsavim", n_workers=2, scheduler_port=9999, dashboard_address="localhost:9998")
-    # gpuclient = Client(set_as_default=False, name="gpu scheduler", n_workers=1, threads_per_workers=1)
 
     rsync_all_files = partial(rsync_component, local=cand.local)
     correlate = partial(
@@ -101,28 +96,19 @@ def voltages_to_ms(
             declination=declination, vis_params=uvh5params.visparams, start_offset=start_offset,
             end_offset=end_offset)
 
-
-    # # Populate rsync queue (the entry queue in our pipeline)
-    # # We only need to do this if the corresponding hdf5 file hasn't
-    # # been created already.
-    # for i, filename in enumerate(cand.voltagefiles):
-    #     if not os.path.exists(uvh5params.files[i]):
-    #         rsync_queue.put((filename, corrparams.files[i]))
-    # rsync_queue.put('END')
-
     futures = []
     last_corr_future = ""
     for i, filename in enumerate(cand.voltagefiles):
         if not os.path.exists(uvh5params.files[i]):
             rsync_future = client.submit(rsync_all_files, [filename, corrparams.files[i]])
+            # TODO: Have one single worker with gpu resources to process correlate instead of
+            # making it depend on the previous process finishing
             corr_future = client.submit(correlate, rsync_future, last_corr_future)
             write_uvh5_future = client.submit(write_uvh5, corr_future)
             futures += [rsync_future, corr_future, write_uvh5_future]
             last_corr_future = corr_future
     wait(futures)
     client.close()
-    # gpuclient.close()
-
 
     # Convert uvh5 files to a measurement set
     msname = f"{system_setup.msdir}{candname}"
