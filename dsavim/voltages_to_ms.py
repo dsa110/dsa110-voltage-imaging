@@ -35,43 +35,6 @@ __all__ = [
 PARAMFILE = resource_filename('dsavim', 'data/voltage_corr_parameters.yaml')
 
 
-def pipeline_component(targetfn, inqueue, outqueue=None):
-    """Generate a component of the pipeline."""
-    @wraps(targetfn)
-    def inner():
-        """Process data from a queue."""
-        targetname = targetfn.__name__ if hasattr(targetfn, '__name__') else targetfn.func.__name__
-        done = False
-        while not done:
-            # Get the next item
-            try:
-                item = inqueue.get(timeout=2)
-                assert item
-            except TimeoutError:
-                time.sleep(8)
-                continue
-
-            # Process the item
-            if item == 'END':
-                done = True
-            else:
-                item = targetfn(item)
-
-            # Pass the item on to the next queue
-            if outqueue is not None:
-                try:
-                    print(f"{targetname} sending {item} to queue")
-                    outqueue.put(item)
-                except (EOFError, BrokenPipeError) as exc:
-                    # Log and end gracefully if the queue is broken
-                    print(
-                        f"{type(exc).__name__} error when accessing outqueue "
-                        f"in {targetname}")
-                    done = True
-
-    return inner
-
-
 def rsync_component(item: Tuple[str], local: bool) -> str:
     """Rsync or copy a file."""
     srcfile, vfile = item
@@ -110,30 +73,13 @@ def correlate_component(
     return corrfile
 
 
-def uvh5_component(
-        corrfile: str, candname: str, corrdir: str, declination: float,
-        vis_params: dict, start_offset: int, end_offset: int) -> None:
-    """Write correlated data to a uvh5 file."""
-    _uvh5name = generate_uvh5(
-        f"{corrdir}/{candname}",
-        declination*u.deg,
-        corrfile=corrfile,
-        vis_params=vis_params,
-        start_offset=start_offset,
-        end_offset=end_offset
-    )
-
-    os.remove(corrfile)
-
-
 def get_declination_etcd(tstart):
     """Look up the declination from etcd."""
     return get_declination(get_elevation(tstart)).to_value(u.deg)
 
 
-def generate_delay_table(vis_params, reftime, declination):
+def generate_delay_table(ant_bw, visparams):
     """Generate a table of geometric and cable delays for the correlator."""
-    _buvw, ant_bw = calculate_uvw_and_geodelay(vis_params, reftime, declination*u.deg)
     total_delay = get_total_delay(
         vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'],
         vis_params['antenna_order'])

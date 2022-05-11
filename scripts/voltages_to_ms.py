@@ -83,7 +83,12 @@ def voltages_to_ms(
     reftime = get_reftime()
     declination = get_declination_etcd(cand.time)
 
-    generate_delay_table(uvh5params.visparams, reftime, declination)
+    corr2uvh5 = UVH5Generator(candname=cand.name, corrdir=system_setup.corrdir,
+            declination=declination, vis_params=uvh5params.visparams, start_offset=start_offset,
+            end_offset=end_offset)
+
+    ant_bw = uvh5_gen.calculate_uvw_and_geodelay(tobs=reftime)
+    generate_delay_table(ant_bw, corr2uvh5.visparams)
 
     client = Client(name="dsavim", n_workers=2, scheduler_port=9999, dashboard_address="localhost:9998")
 
@@ -91,10 +96,6 @@ def voltages_to_ms(
     correlate = partial(
         correlate_component, dispersion_measure=cand.dm, ntint=corrparams.ntint,
         corr_ch0=system_setup.corr_ch0_MHz, npol=corrparams.npol)
-    write_uvh5 = partial(
-            uvh5_component, candname=cand.name, corrdir=system_setup.corrdir,
-            declination=declination, vis_params=uvh5params.visparams, start_offset=start_offset,
-            end_offset=end_offset)
 
     futures = []
     last_corr_future = ""
@@ -104,8 +105,8 @@ def voltages_to_ms(
             # TODO: Have one single worker with gpu resources to process correlate instead of
             # making it depend on the previous process finishing
             corr_future = client.submit(correlate, rsync_future, last_corr_future)
-            write_uvh5_future = client.submit(write_uvh5, corr_future)
-            futures += [rsync_future, corr_future, write_uvh5_future]
+            corr2uvh5_future = client.submit(corr2uvh5.process, corr_future)
+            futures += [rsync_future, corr_future, corr2uvh5_future]
             last_corr_future = corr_future
     wait(futures)
     client.close()
