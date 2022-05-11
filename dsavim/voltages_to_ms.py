@@ -6,6 +6,7 @@ import time
 import re
 import os
 from functools import wraps
+from contextlib import contextmanager
 
 import subprocess
 from pkg_resources import resource_filename
@@ -13,6 +14,7 @@ import numpy as np
 import astropy.units as u
 from dask.distributed import Queue, Variable, Lock
 from asyncio import TimeoutError
+import asyncio
 
 from antpos.utils import get_itrf
 from dsautils.coordinates import get_declination, get_elevation
@@ -20,15 +22,15 @@ import dsacalib.constants as ct
 
 from dsavim.dedisperse import get_dispersion_delay_ms
 from dsavim.generate_uvh5 import calculate_uvw_and_geodelay, get_total_delay
-from dsavim.utils import rsync_file, get_tstart_from_json, get_DM_from_json
+from dsavim.utils import rsync_file, get_tstart_from_json, get_DM_from_json, load_params
 from dsavim.generate_uvh5 import generate_uvh5
 
 __all__ = [
     'pipeline_component', 'rsync_component', 'correlate_component',
-    'uvh5_component', 'process_join', 'generate_declination_component',
+    'uvh5_component',
     'generate_delay_table', 'initialize_system', 'initialize_candidate', 'initialize_correlator',
     'initialize_uvh5', 'initialize_vis_params', 'parse_visibility_parameters', 'get_cable_delays',
-    'get_blen', 'ProtectedVariable']
+    'get_declination_etcd', 'get_blen', 'ProtectedVariable']
 
 PARAMFILE = resource_filename('dsavim', 'data/voltage_corr_parameters.yaml')
 
@@ -82,12 +84,9 @@ def rsync_component(item: Tuple[str], local: bool) -> str:
 
 
 def correlate_component(
-        vfile: str, dispersion_measure: float, ntint: int, corr_ch0: dict, npol: int,
-        ncorrfiles: 'ProtectedVariable') -> str:
-    """Correlate a file."""
-    while ncorrfiles.get() > 2:
-        time.sleep(10)
+        vfile: str, prev: str, dispersion_measure: float, ntint: int, corr_ch0: dict, npol: int) -> str:
 
+    """Correlate a file."""
     corr = re.findall(r"corr\d\d", vfile)[0]
     if not os.path.exists(f"{vfile}.corr"):
         first_channel_MHz = corr_ch0[corr]
@@ -108,16 +107,12 @@ def correlate_component(
 
     corrfile = f"{vfile}.corr"
 
-    with ncorrfiles.get_lock():
-        ncorrfiles.set(ncorrfiles.get() + 1)
-
     return corrfile
 
 
 def uvh5_component(
         corrfile: str, candname: str, corrdir: str, declination: float,
-        vis_params: dict, start_offset: int, end_offset: int,
-        ncorrfiles: 'Manager().Value') -> None:
+        vis_params: dict, start_offset: int, end_offset: int) -> None:
     """Write correlated data to a uvh5 file."""
     _uvh5name = generate_uvh5(
         f"{corrdir}/{candname}",
@@ -129,11 +124,9 @@ def uvh5_component(
     )
 
     os.remove(corrfile)
-    with ncorrfiles.get_lock():
-        ncorrfiles.set(ncorrfiles.get() - 1)
 
 
-def get_declination_etcd():
+def get_declination_etcd(tstart):
     """Look up the declination from etcd."""
     return get_declination(get_elevation(tstart)).to_value(u.deg)
 
@@ -375,16 +368,15 @@ class ProtectedVariable():
         self.variable.set(initial_value)
 
     @contextmanager
-    def _get_lock():
+    def get_lock(self):
         try:
             assert self.lock.acquire()
             yield self.variable
         finally:
             self.lock.release()
 
-    def get():
+    def get(self):
         return self.variable.get()
 
-    def set(value):
-        with self._get_lock():
-            self.variable.set(value)
+    def set(self, value):
+        self.variable.set(value)

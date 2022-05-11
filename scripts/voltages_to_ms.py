@@ -1,12 +1,15 @@
 """
 Convert voltage files to measurement sets.
 """
+print("Importing stuff")
 import os
-from multiprocessing import Process, Value, JoinableQueue
 import argparse
 from functools import partial
 
-from dask.distributed import Client, Variable
+import dask
+dask.config.set(scheduler="synchronous")
+from dask.distributed import Client, Variable, wait
+
 from astropy.time import Time
 
 import dsautils.cnf as dsc
@@ -76,24 +79,27 @@ def voltages_to_ms(
     uvh5params = initialize_uvh5(corrparams, cand, system_setup, outrigger_delays)
 
     # Initialize the process manager, locks, values, and queues
-    ncorrfiles = ProtectedVariable("ncorrfiles", 0)
     # rsync_queue = Queue()
     # corr_queue = Queue()
     # uvh5_queue = Queue()
 
     reftime = get_reftime()
-    declination = get_declination_etcd()
+    declination = get_declination_etcd(cand.time)
 
     generate_delay_table(uvh5params.visparams, reftime, declination)
+
+
+    client = Client(name="dsavim", n_workers=2, scheduler_port=9999, dashboard_address="localhost:9998")
+    # gpuclient = Client(set_as_default=False, name="gpu scheduler", n_workers=1, threads_per_workers=1)
 
     rsync_all_files = partial(rsync_component, local=cand.local)
     correlate = partial(
         correlate_component, dispersion_measure=cand.dm, ntint=corrparams.ntint,
-        corr_ch0=system_setup.corr_ch0_MHz, npol=corrparams.npol, ncorrfiles=ncorrfiles)
+        corr_ch0=system_setup.corr_ch0_MHz, npol=corrparams.npol)
     write_uvh5 = partial(
             uvh5_component, candname=cand.name, corrdir=system_setup.corrdir,
             declination=declination, vis_params=uvh5params.visparams, start_offset=start_offset,
-            end_offset=end_offset, ncorrfiles=ncorrfiles)
+            end_offset=end_offset)
 
 
     # # Populate rsync queue (the entry queue in our pipeline)
@@ -104,15 +110,18 @@ def voltages_to_ms(
     #         rsync_queue.put((filename, corrparams.files[i]))
     # rsync_queue.put('END')
 
-
     futures = []
+    last_corr_future = ""
     for i, filename in enumerate(cand.voltagefiles):
         if not os.path.exists(uvh5params.files[i]):
-            rsync_future = client.submit(rsync_all_files, filename)
-            corr_future = client.submit(correlate, rsync_future)
-            write_uvh5_future = client.submit(correlate, write_uvh5_future)
+            rsync_future = client.submit(rsync_all_files, [filename, corrparams.files[i]])
+            corr_future = client.submit(correlate, rsync_future, last_corr_future)
+            write_uvh5_future = client.submit(write_uvh5, corr_future)
             futures += [rsync_future, corr_future, write_uvh5_future]
+            last_corr_future = corr_future
     wait(futures)
+    client.close()
+    # gpuclient.close()
 
 
     # Convert uvh5 files to a measurement set
@@ -182,7 +191,9 @@ def parse_commandline_arguments() -> 'argparse.Namespace':
     args = parser.parse_args()
     return args
 
+
 if __name__ == '__main__':
+    print("Running main program")
     ARGS = parse_commandline_arguments()
     voltages_to_ms(
         ARGS.candname, ARGS.datestring, ntint=ARGS.ntint, start_offset=ARGS.startoffset,
