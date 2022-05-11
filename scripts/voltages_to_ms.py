@@ -15,6 +15,7 @@ from astropy.time import Time
 import dsautils.cnf as dsc
 
 from dsavim.uvh5_to_ms import uvh5_to_ms
+from dsavim.UVH5Generator import UVH5Generator
 from dsavim.voltages_to_ms import *
 
 
