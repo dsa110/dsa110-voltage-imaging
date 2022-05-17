@@ -64,7 +64,8 @@ class VLASSCat:
         if not isinstance(pointing, SkyCoord):
             pointing = SkyCoord(*pointing)
 
-        ramin, ramax = [(pointing.ra + sign*halfwidth).to_value(u.deg) for sign in [-1, 1]]
+        halfwidth_ra = halfwidth/np.cos(pointing.dec)
+        ramin, ramax = [(pointing.ra + sign*halfwidth_ra).to_value(u.deg) for sign in [-1, 1]]
         decmin, decmax = [(pointing.dec + sign*halfwidth).to_value(u.deg) for sign in [-1, 1]]
 
         query_result = (
