@@ -2,11 +2,13 @@
 
 import os
 from typing import Tuple, Union
+from collections import namedtuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas
 import astropy.units as u
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, match_coordinates_sky
 from astropy.wcs import WCS
 from astropy.io import fits
 import bdsf
@@ -158,10 +160,10 @@ class Image:
 
     def show(self):
         """Plot the image, and return ax for overplotting additional elements."""
-        fig, ax = plt.subplots(
+        _fig, ax = plt.subplots(
             figsize=(16, 16),
-            subplot_kw={'projection': dsaimage.wcs, 'slices': ('x', 'y', 0, 0)})
-        im = ax.imshow(
+            subplot_kw={'projection': self._wcs, 'slices': ('x', 'y', 0, 0)})
+        _im = ax.imshow(
             self._data, interpolation='nearest', cmap='gray', origin='lower',
             vmin=self._datamean - self._datastd * 2, vmax=self._datamean + self._datastd*10)
         return ax
@@ -227,18 +229,16 @@ def match_catalogs(dsa: pandas.DataFrame, reference: pandas.DataFrame) -> pandas
     """Match sources from two catalogs.
 
     Beware: the ids returned are the ilocs, not indexs."""
-    Match = namedtuple('Match', 'dsa_id ref_id sep_2d_arcsecond ra_offset_deg dec_offset_deg ref_code')
     dsa_coords = SkyCoord(dsa['RA']*u.deg, dsa['DEC']*u.deg)
     ref_coords = SkyCoord(reference['RA']*u.deg, reference['DEC']*u.deg)
-    matches = []
-    for dsa_id, dsa_coord in enumerate(dsa_coords):
-        ref_id, sep2d, _ = match_coordinates_sky(dsa_coord, ref_coords)
+    ref_ids, sep2ds, _ = match_coordinates_sky(dsa_coords, ref_coords)
 
-        delta_ra = (ref_coords[ref_id].ra - dsa_coord.ra).to_value(u.arcsec)/np.cos(dsa_coord.dec)
-        delta_dec = (ref_coord[ref_id].dec - dsa_coord.dec).to_value(u.arcsec)
+    sep2ds = [sep2d.to_value(u.arcsec) for sep2d in sep2ds]
+    delta_ras = (ref_coords[ref_ids].ra - dsa_coords.ra).to_value(u.arcsec)*np.cos(dsa_coords.dec.to_value(u.rad))
+    delta_decs = (ref_coords[ref_ids].dec - dsa_coords.dec).to_value(u.arcsec)
+    dsa_ids = range(len(dsa_coords))
+    ref_codes = reference.iloc[ref_ids]['S_Code']
 
-        matches.append(Match(
-            dsa_id, ref_id, sep2d[0].to_value(u.arcsecond), delta_ra, delta_dec,
-            reference.iloc[ref_id]['S_Code']))
-
-    return pandas.DataFrame(matches, columns=Match._fields)
+    return pandas.DataFrame(
+        list(zip(dsa_ids, ref_ids, sep2ds, delta_ras, delta_decs, ref_codes)),
+        columns = ['dsa_id', 'ref_id', 'sep2d_asec', 'ra_offset_asec', 'dec_offset_asec', 'ref_code'])
