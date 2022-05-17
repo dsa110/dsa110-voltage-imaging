@@ -15,6 +15,11 @@ from astropy.io import fits
 import bdsf
 
 
+__all__ = [
+    "VLASSCat", "Image", "match_catalogs", "plot_catalogs", "plot_offset_direction",
+    "plot_matched_sources", "plot_offsets"]
+
+
 class VLASSCat:
     """The VLASS catalog as a searchable dataframe."""
 
@@ -297,6 +302,7 @@ def plot_matched_sources(
     return ax
 
 def plot_offsets(ra_offsets: List[float], dec_offsets: List[float], limit: int = 4) -> "matplotlib.axes.Axes":
+    """Create a scatter plots of the offsets."""
     fig, ax = plt.subplots(1, 1, figsize=(6, 6))
     ax.scatter(ra_offsets, dec_offsets)
     ax.set_xlim(-1*limit, limit)
