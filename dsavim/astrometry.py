@@ -1,7 +1,9 @@
 """Match sources between catalogs."""
 
+import os
 from typing import Tuple, Union
 
+import numpy as np
 import pandas
 import astropy.units as u
 from astropy.coordinates import SkyCoord
@@ -11,7 +13,8 @@ import bdsf
 
 
 class VLASSCat:
-    
+    """The VLASS catalog as a searchable dataframe."""
+
     def __init__(self, filepath: str = "/home/ubuntu/dana/vlass.csv"):
         self.filepath = filepath
         self._load()
@@ -22,8 +25,8 @@ class VLASSCat:
         vlass.columns = [colname.strip() for colname in vlass.columns]
         vlass.drop(
             columns=[
-                'Unnamed: 0', 'Isl_Total_flux', 'E_Isl_Total_flux', 'Isl_rms', 'Isl_mean', 'Resid_Isl_rms',
-                'Resid_Isl_mean', 'e2_image', 'tile', 'img_coord',
+                'Unnamed: 0', 'Isl_Total_flux', 'E_Isl_Total_flux', 'Isl_rms', 'Isl_mean',
+                'Resid_Isl_rms', 'Resid_Isl_mean', 'e2_image', 'tile', 'img_coord',
                 'e2_5x5_box_peak_mJy', 'e2_rms_mJy', 'e2_distance_to_img_edge_pix',
                 'nlines', 'e2_flux_percentile', 'e1_image',
                 'e1_5x5_box_peak_mJy', 'e1_rms_mJy', 'e1_distance_to_img_edge_pix',
@@ -55,24 +58,24 @@ class VLASSCat:
             The maximum deviation in RA or Dec from `pointing` for which to return sources.
         code :
             If passed, restricts returned sources to one that match `code`. Can be "S", "M" or "C".
-        min_flux : 
+        min_flux :
             If passed, restricts returned sources to ones with Total_flux > `min_flux` mJy.
         """
         if not isinstance(pointing, SkyCoord):
             pointing = SkyCoord(*pointing)
-        
+
         ramin, ramax = [(pointing.ra + sign*halfwidth).to_value(u.deg) for sign in [-1, 1]]
         decmin, decmax = [(pointing.dec + sign*halfwidth).to_value(u.deg) for sign in [-1, 1]]
 
         query_result = (
-            (self._catalog['RA'] > ramin) & (self._catalog['RA'] < ramax) & 
+            (self._catalog['RA'] > ramin) & (self._catalog['RA'] < ramax) &
             (self._catalog['DEC'] > decmin) & (self._catalog['DEC'] < decmax))
 
         if code:
             query_result = query_result & (self._catalog['S_Code'] == code)
         if min_flux is not None:
             query_result = query_result & (self._catalog['Total_flux'] > min_flux)
-        
+
         return self._catalog[query_result]
 
     @property
@@ -82,16 +85,16 @@ class VLASSCat:
 
 
 class Image:
-    """A radio image, stored in fits format.""" 
+    """A radio image, stored in fits format."""
 
     def __init__(self, filepath: str):
-        self.filepath = filepath
+        self._filepath = filepath
         self._load()
         self._sources = None
 
     def _load(self) -> None:
         """Read in an image, including the data and wcs coordinates."""
-        with fits.open(self.filepath) as hdulist:
+        with fits.open(self._filepath) as hdulist:
             hdu = hdulist[0]
             self._wcs = WCS(hdu.header)
             self._data = hdu.data[0, 0, ...]
@@ -102,7 +105,7 @@ class Image:
 
     def find_sources(self, sparse=True, **kwargs) -> None:
         """Find sources in the image using pybdsf.
-        
+
         If `sparse` is `True`, then sources close to bright sources are removed from the source
         list.
         kwargs are passed to pybdsf.
@@ -116,7 +119,9 @@ class Image:
 
     def sparsify_source_list(self, minsep: u.Quantity = 10*u.arcminute):
         """Remove sources within `minsep` of a brighter source from the source catalog."""
-        assert self._sources
+        assert self._sources is not None
+        sources = self._sources
+
         to_remove = []
         to_keep = []
         tol_dec = minsep.to_value(u.deg)
@@ -139,6 +144,12 @@ class Image:
                     to_remove.extend(nearby.tail(len(nearby)-1).index)
 
         self._sources = sources.iloc[to_keep].drop_duplicates()
+        self._sources.reset_index(inplace=True, drop=True)
+
+    @property
+    def filepath(self) -> str:
+        """The path to the fits image on disk."""
+        return self._filepath
 
     @property
     def data(self) -> np.ndarray:
@@ -176,7 +187,7 @@ class Image:
         if self._sources is None:
             self.find_sources()
         return self._sources
-    
+
 
 # class CatMatcher:
 #     def __init__(self):
