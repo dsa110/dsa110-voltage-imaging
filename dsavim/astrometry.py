@@ -1,7 +1,7 @@
 """Match sources between catalogs."""
 
 import os
-from typing import Tuple, Union
+from typing import Tuple, Union, List
 from collections import namedtuple
 
 import matplotlib.pyplot as plt
@@ -269,7 +269,7 @@ def plot_catalogs(
     return ax
 
 def plot_offset_direction(
-        coords: SkyCoord, ra_offsets: list[float], dec_offsets: list[float]) -> "matplotlib.axes.Axes":
+        dsaimage: Image, coords: SkyCoord, ra_offsets: List[float], dec_offsets: List[float]) -> "matplotlib.axes.Axes":
     """Plot measured offsets on an image."""
     ax = dsaimage.show()
     for (coord, ra_offset, dec_offset) in zip(coords, ra_offsets, dec_offsets):
@@ -282,7 +282,7 @@ def plot_offset_direction(
     return ax
 
 def plot_matched_sources(
-        dsaimage: Image, catalogs: List[Tuple[SkyCoord, int, str]], matched: list,
+        dsaimage: Image, catalogs: List[Tuple[SkyCoord, int, str]], matched: List[int],
         matched_size: int = 75, matched_colour: str = "yellow") -> "matplotlib.axes.Axes":
     """Plot two catalogs, as well as matches between them.
 
@@ -291,14 +291,14 @@ def plot_matched_sources(
     (catalog coordinates, size of circle to draw, colour of circle to draw)
     """
     ax = plot_catalogs(dsaimage, catalogs)
+    coords = catalogs[0][0]
     for i in matched:
-        x, y, *_ = dsaimage.wcs.world_to_pixel(dsa_coords[i], dsaimage.f0, dsaimage.p0)
+        x, y, *_ = dsaimage.wcs.world_to_pixel(coords[i], dsaimage.f0, dsaimage.p0)
         if x >= 0 and x < dsaimage.data.shape[0] and y >=0 and y < dsaimage.data.shape[1]:
             e = Circle(xy=(x, y), radius=matched_size)
             e.set_facecolor('none')
             e.set_edgecolor(matched_colour)
             ax.add_artist(e)
-
     return ax
 
 def plot_offsets(ra_offsets: List[float], dec_offsets: List[float], limit: int = 4) -> "matplotlib.axes.Axes":
