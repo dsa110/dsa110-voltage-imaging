@@ -82,6 +82,8 @@ class VLASSCat:
 
 
 class Image:
+    """A radio image, stored in fits format.""" 
+
     def __init__(self, filepath: str):
         self.filepath = filepath
         self._load()
