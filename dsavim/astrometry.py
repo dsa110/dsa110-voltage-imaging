@@ -295,3 +295,14 @@ def plot_matched_sources(
             ax.add_artist(e)
 
     return ax
+
+def plot_offsets(ra_offsets: List[float], dec_offsets: List[float], limit: int = 4) -> "matplotlib.axes.Axes":
+    fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+    ax.scatter(ra_offsets, dec_offsets)
+    ax.set_xlim(-1*limit, limit)
+    ax.set_ylim(-1*limit, limit)
+    ax.axhline(0, color='grey')
+    ax.axvline(0, color='Grey')
+    ax.set_xlabel('RA offset (arcsec)')
+    ax.set_ylabel('Dec offset (arcsec)')
+    return ax
