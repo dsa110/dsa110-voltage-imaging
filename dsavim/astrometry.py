@@ -5,6 +5,7 @@ from typing import Tuple, Union
 from collections import namedtuple
 
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle, Arrow
 import numpy as np
 import pandas
 import astropy.units as u
@@ -242,3 +243,55 @@ def match_catalogs(dsa: pandas.DataFrame, reference: pandas.DataFrame) -> pandas
     return pandas.DataFrame(
         list(zip(dsa_ids, ref_ids, sep2ds, delta_ras, delta_decs, ref_codes)),
         columns = ['dsa_id', 'ref_id', 'sep2d_asec', 'ra_offset_asec', 'dec_offset_asec', 'ref_code'])
+
+def plot_catalogs(
+        dsaimage: Image, catalogs: List[Tuple[SkyCoord, int, str]]) -> "matplotlib.axes.Axes":
+    """Plot sources from two catalogs.
+
+    `catalogs` is a list of tuples, which are 
+    (catalog coordinates, size of circle to draw, color of circle to draw)
+    """
+    ax = dsaimage.show()
+    for catalog, size, colour in catalogs:
+        for i, coord in enumerate(catalog):
+            x, y, *_ = dsaimage.wcs.world_to_pixel(coord, dsaimage.f0, dsaimage.p0)
+            if x >= 0 and x < dsaimage.data.shape[0] and y >=0 and y < dsaimage.data.shape[1]:
+                e = Circle(xy=(x, y), radius=size)
+                e.set_facecolor('none')
+                e.set_edgecolor(colour)
+                ax.add_artist(e)
+                ax.annotate(i, (x, y), color=colour)
+    return ax
+
+def plot_offset_direction(
+        coords: SkyCoord, ra_offsets: list[float], dec_offsets: list[float]) -> "matplotlib.axes.Axes":
+    """Plot measured offsets on an image."""
+    ax = dsaimage.show()
+    for (coord, ra_offset, dec_offset) in zip(coords, ra_offsets, dec_offsets):
+        x, y, *_ = dsaimage.wcs.world_to_pixel(coord, dsaimage.f0, dsaimage.p0)
+        if x >= 0 and x < dsaimage.data.shape[0] and y >=0 and y < dsaimage.data.shape[1]:
+            e = Arrow(x=x, y=y, dx=ra_offset*200, dy=dec_offset*200, width=200)
+            e.set_facecolor('white')
+            e.set_edgecolor('white')
+            ax.add_artist(e)
+    return ax
+
+def plot_matched_sources(
+        dsaimage: Image, catalogs: List[Tuple[SkyCoord, int, str]], matched: list,
+        matched_size: int = 75, matched_colour: str = "yellow") -> "matplotlib.axes.Axes":
+    """Plot two catalogs, as well as matches between them.
+
+    `matched` are indices in the first catalog for which matches were found.
+    `catalogs` is a list of tuples, which are 
+    (catalog coordinates, size of circle to draw, colour of circle to draw)
+    """
+    ax = plot_catalogs(dsaimage, catalogs)
+    for i in matched:
+        x, y, *_ = dsaimage.wcs.world_to_pixel(dsa_coords[i], dsaimage.f0, dsaimage.p0)
+        if x >= 0 and x < dsaimage.data.shape[0] and y >=0 and y < dsaimage.data.shape[1]:
+            e = Circle(xy=(x, y), radius=matched_size)
+            e.set_facecolor('none')
+            e.set_edgecolor(matched_colour)
+            ax.add_artist(e)
+
+    return ax
