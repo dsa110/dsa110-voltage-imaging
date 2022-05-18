@@ -405,6 +405,7 @@ def get_fits_image(ra_centre: "Quantity", dec_centre: "Quantity", size: "Quantit
     image = transform(image)
     return image, wcs
 
+
 def plot_contours_on_ps1(imname: str, resize_factor: float = None) -> None:
     """Plot radio contours over a ps1 image of the same region."""
     # TODO: get image coordinates from the fits file so we don't need the image file too
@@ -413,19 +414,21 @@ def plot_contours_on_ps1(imname: str, resize_factor: float = None) -> None:
         exportfits(imname, fits_imname)
 
     radio_image, radiowcs = load_radio_image(fits_imname)
-    ra_centre, dec_centre, size = get_centre_coordinates(imname)
-    print(ra_centre.to_string('hourangle'), dec_centre.to_string('deg'))
-    ps1_image, wcs = get_fits_image(ra_centre, dec_centre, size)
+    centre, _, _ = radiowcs.pixel_to_world(radio_image.shape[0]//2, radio_image.shape[1]//2, 0, 0)
+    edge, _, _ = radiowcs.pixel_to_world(0, 0, 0, 0)
+
+    ps1_image, wcs = get_fits_image(centre.ra, centre.dec, abs(centre.dec-edge.dec))
 
     immax = np.nanmax(radio_image)
-    contours = [0.01, 0.1, 0.25, 0.5, 0.75, 0.90, 0.99]
+    contours = [1-diff for diff in np.logspace(-3, 0, 5)[::-1]]
 
-    fig, ax = plt.subplots(1, 1, figsize=(12, 6), subplot_kw={'projection': radiowcs, 'slices': ('x', 'y', 0, 0)})
+    fig, ax = plt.subplots(1, 1, figsize=(12*2, 6*2), subplot_kw={'projection': radiowcs, 'slices': ('x', 'y', 0, 0)})
     ax.imshow(ps1_image, origin='lower', transform=ax.get_transform(wcs))
     if immax > 0:
-        ax.contour(radio_image, colors='white', levels=[immax*contour for contour in contours])
+        ax.contour(radio_image, colors='white', levels=[immax*contour for contour in contours], alpha=0.4)
     if resize_factor:
         x1, x2 = ax.get_xlim()
         y1, y2 = ax.get_ylim()
         ax.set_xlim((x1+x2)/2-(x2-x1)*resize_factor, (x1+x2)/2+(x2-x1)*resize_factor)
         ax.set_ylim((y1+y2)/2-(y2-y1)*resize_factor, (y1+y2)/2+(y2-y1)*resize_factor)
+
