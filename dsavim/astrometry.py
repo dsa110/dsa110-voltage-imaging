@@ -132,6 +132,7 @@ class SourceCatalog:
 
     def sparsify(self, minsep: u.Quantity = 10*u.arcminute):
         """Remove sources within `minsep` of a brighter source from the source catalog."""
+        # TODO: Query sources within a circle instead of a square
         assert self._sources is not None
         sources = self._sources
         centre_dec = np.mean(sources['DEC'])
