@@ -123,7 +123,12 @@ class Image:
         """
         output = bdsf.process_image(self._filepath, **kwargs)
         output.write_catalog(format='csv', clobber=True)
-        self.load_source_catalog(sparse)
+        try:
+            self.load_source_catalog(sparse)
+        except FileNotFoundError:
+            self._sources = pandas.DataFrame()
+            print("No sources found")
+        
 
     def load_source_catalog(self, sparse=True):
         """Load sources from a previously generated source catalog.
@@ -131,7 +136,15 @@ class Image:
         If `sparse` is `True`, then sources close to bright sources are removed from the source
         list.
         """
-        self._sources = read_bdsf_csv(f"{os.path.splitext(self._filepath)[0]}.pybdsm.gaul")
+        catalog_path = f"{os.path.splitext(self._filepath)[0]}.pybdsm.gaul"
+
+        if not os.path.exists(catalog_path):
+            raise FileNotFoundError(f"Catalog {catalog_path} does not exist.")
+
+        if os.path.getmtime(catalog_path) < os.path.getmtime(self._filepath):
+            raise RuntimeError(f"Catalog {catalog_path} older than image {self._filepath}")
+        
+        self._sources = read_bdsf_csv(catalog_path)
         if sparse:
             self.sparsify_source_list()
 
@@ -166,13 +179,13 @@ class Image:
 
     def show(self):
         """Plot the image, and return ax for overplotting additional elements."""
-        _fig, ax = plt.subplots(
+        fig, ax = plt.subplots(
             figsize=(16, 16),
             subplot_kw={'projection': self._wcs, 'slices': ('x', 'y', 0, 0)})
         _im = ax.imshow(
             self._data, interpolation='nearest', cmap='gray', origin='lower',
             vmin=self._datamean - self._datastd * 2, vmax=self._datamean + self._datastd*10)
-        return ax
+        return fig, ax
 
     @property
     def filepath(self) -> str:
@@ -216,7 +229,7 @@ class Image:
             try:
                 self.load_source_catalog()
                 print("Loaded source catalog from disk")
-            except FileNotFoundError:
+            except (FileNotFoundError, RuntimeError) as e:
                 self.find_sources()
                 print("Generated new source catalog")
 
@@ -256,7 +269,7 @@ def plot_catalogs(
     `catalogs` is a list of tuples, which are 
     (catalog coordinates, size of circle to draw, color of circle to draw)
     """
-    ax = dsaimage.show()
+    fig, ax = dsaimage.show()
     for catalog, size, colour in catalogs:
         for i, coord in enumerate(catalog):
             x, y, *_ = dsaimage.wcs.world_to_pixel(coord, dsaimage.f0, dsaimage.p0)
@@ -266,12 +279,12 @@ def plot_catalogs(
                 e.set_edgecolor(colour)
                 ax.add_artist(e)
                 ax.annotate(i, (x, y), color=colour)
-    return ax
+    return fig, ax
 
 def plot_offset_direction(
         dsaimage: Image, coords: SkyCoord, ra_offsets: List[float], dec_offsets: List[float]) -> "matplotlib.axes.Axes":
     """Plot measured offsets on an image."""
-    ax = dsaimage.show()
+    fig, ax = dsaimage.show()
     for (coord, ra_offset, dec_offset) in zip(coords, ra_offsets, dec_offsets):
         x, y, *_ = dsaimage.wcs.world_to_pixel(coord, dsaimage.f0, dsaimage.p0)
         if x >= 0 and x < dsaimage.data.shape[0] and y >=0 and y < dsaimage.data.shape[1]:
@@ -279,7 +292,7 @@ def plot_offset_direction(
             e.set_facecolor('white')
             e.set_edgecolor('white')
             ax.add_artist(e)
-    return ax
+    return fig, ax
 
 def plot_matched_sources(
         dsaimage: Image, catalogs: List[Tuple[SkyCoord, int, str]], matched: List[int],
@@ -290,7 +303,7 @@ def plot_matched_sources(
     `catalogs` is a list of tuples, which are 
     (catalog coordinates, size of circle to draw, colour of circle to draw)
     """
-    ax = plot_catalogs(dsaimage, catalogs)
+    fig, ax = plot_catalogs(dsaimage, catalogs)
     coords = catalogs[0][0]
     for i in matched:
         x, y, *_ = dsaimage.wcs.world_to_pixel(coords[i], dsaimage.f0, dsaimage.p0)
@@ -299,7 +312,7 @@ def plot_matched_sources(
             e.set_facecolor('none')
             e.set_edgecolor(matched_colour)
             ax.add_artist(e)
-    return ax
+    return fig, ax
 
 def plot_offsets(ra_offsets: List[float], dec_offsets: List[float], limit: int = 4) -> "matplotlib.axes.Axes":
     """Create a scatter plots of the offsets."""
@@ -311,4 +324,4 @@ def plot_offsets(ra_offsets: List[float], dec_offsets: List[float], limit: int =
     ax.axvline(0, color='Grey')
     ax.set_xlabel('RA offset (arcsec)')
     ax.set_ylabel('Dec offset (arcsec)')
-    return ax
+    return fig, ax
