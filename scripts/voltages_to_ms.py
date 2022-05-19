@@ -85,7 +85,7 @@ def voltages_to_ms(
 
     generate_delay_table(uvh5params.visparams, reftime, declination)
 
-    client = Client(name="dsavim", n_workers=2, scheduler_port=9999, dashboard_address="localhost:9998")
+    client = Client(name="dsavim", n_workers=2, scheduler_port=9997, dashboard_address="localhost:9996")
 
     rsync_all_files = partial(rsync_component, local=cand.local)
     correlate = partial(
