@@ -19,7 +19,7 @@ from dsavim.voltages_to_ms import *
 
 
 def voltages_to_ms(
-        candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
+        candname: str, ntint: int, start_offset: int, end_offset: int,
         dispersion_measure: float = None, full_pol: bool = False) -> None:
     """
     Correlate voltage files and convert to a measurement set.
@@ -28,9 +28,6 @@ def voltages_to_ms(
     ----------
     candname : str
         The unique name of the candidate.
-    datestring : str
-        The datestring the observation is archived under. Use 'current' if the
-        data is from the current, unarchived observing run.
     ntint : int
         The number of time samples to integrate together during correlation.
     nfint : int
@@ -51,7 +48,7 @@ def voltages_to_ms(
     # The following needs to happen in a subprocess
     system_setup = initialize_system()
 
-    cand = initialize_candidate(candname, datestring, system_setup, dispersion_measure)
+    cand = initialize_candidate(candname, system_setup, dispersion_measure)
     corrparams = initialize_correlator(full_pol, ntint, cand, system_setup)
 
     # TODO: Look up outrigger delays in influx instead of using these hardcoded values
@@ -111,7 +108,7 @@ def voltages_to_ms(
     client.close()
 
     # Convert uvh5 files to a measurement set
-    msname = f"{system_setup.msdir}{candname}"
+    msname = f"{system_setup.archivedir}/{candname}/Level2/{candname}"
     uvh5_to_ms(
         cand.name, cand.time, uvh5params.files, msname, corrparams.reftime,
         template_path=None)
@@ -145,12 +142,6 @@ def parse_commandline_arguments() -> 'argparse.Namespace':
         type=str,
         help="unique candidate name")
     parser.add_argument(
-        '--datestring',
-        type=str,
-        help="datestring of archived candidate",
-        nargs='?',
-        default='current')
-    parser.add_argument(
         '--ntint',
         type=int,
         nargs='?',
@@ -182,5 +173,5 @@ if __name__ == '__main__':
     print("Running main program")
     ARGS = parse_commandline_arguments()
     voltages_to_ms(
-        ARGS.candname, ARGS.datestring, ntint=ARGS.ntint, start_offset=ARGS.startoffset,
+        ARGS.candname, ntint=ARGS.ntint, start_offset=ARGS.startoffset,
         end_offset=ARGS.stopoffset, dispersion_measure=ARGS.dm)

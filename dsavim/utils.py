@@ -6,7 +6,11 @@ import re
 import yaml
 from astropy.time import Time
 from dsautils import cnf
-
+import dsamfs.utils as pu
+from antpos import utils
+import dsacalib.constants as ct
+import astropy.units as u
+import numpy as np
 
 def load_params(paramfile: str) -> dict:
     """Load parameters for voltage correlation from a yaml file."""
@@ -19,7 +23,18 @@ def load_params(paramfile: str) -> dict:
     voltage_corr_params['ch0'] = corrconf['ch0']
     voltage_corr_params['f0_GHz'] = corrconf['f0_GHz']
     voltage_corr_params['antennas'] = list(corrconf['antenna_order'].values())[:63]
+    ant_od = corrconf['antenna_order']
+    antenna_order = [int(ad) for ad in list(ant_od.values())]
     voltage_corr_params['outrigger_delays'] = mfsconf['outrigger_delays']
+    df = utils.get_itrf(
+        latlon_center=(ct.OVRO_LAT * u.rad, ct.OVRO_LON *
+                       u.rad, ct.OVRO_ALT * u.m)
+    )
+    ant_itrf = np.array([df['dx_m'], df['dy_m'], df['dz_m']]).T
+    nants_telescope = max(df.index)
+    voltage_corr_params['ant_itrf'] = ant_itrf
+    voltage_corr_params['nants_telescope'] = nants_telescope
+    voltage_corr_params['snapdelays'] = pu.get_delays(antenna_order, nants_telescope)    
 
     return voltage_corr_params
 
@@ -28,6 +43,7 @@ def get_tstart_from_json(headername: str) -> 'astropy.time.Time':
     """Extract the start time from the header file."""
     with open(headername) as jsonf:
         metadata = json.load(jsonf)
+    metadata = metadata[list(metadata.keys())[0]]
     tstart = Time(metadata['mjds'], format='mjd')
     return tstart
 
@@ -36,6 +52,7 @@ def get_DM_from_json(headername: str) -> float:
     """Extract the dispersion measure from the header file."""
     with open(headername) as jsonf:
         metadata = json.load(jsonf)
+    metadata = metadata[list(metadata.keys())[0]]
     return metadata['dm']
 
 

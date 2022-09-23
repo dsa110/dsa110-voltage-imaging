@@ -86,8 +86,14 @@ def rsync_component(item: Tuple[str], local: bool) -> str:
 def correlate_component(
         vfile: str, prev: str, dispersion_measure: float, ntint: int, corr_ch0: dict, npol: int) -> str:
 
-    """Correlate a file."""
-    corr = re.findall(r"corr\d\d", vfile)[0]
+    """Correlate a file."""    
+    sb = re.findall(r"sb\d\d", vfile)[0]
+    _corrlist = {'sb00':'corr03','sb01':'corr04','sb02':'corr05','sb03':'corr06','sb04':'corr07',
+                 'sb05':'corr08','sb06':'corr10','sb07':'corr11','sb08':'corr12','sb09':'corr14',
+                 'sb10':'corr15','sb11':'corr16','sb12':'corr18','sb13':'corr19','sb14':'corr21',
+                 'sb15':'corr22'}
+    corr = _corrlist[sb]
+    
     if not os.path.exists(f"{vfile}.corr"):
         first_channel_MHz = corr_ch0[corr]
         command = (
@@ -157,21 +163,16 @@ def initialize_system():
     return system_setup
 
 
-def initialize_candidate(candname, datestring, system_setup, dispersion_measure=None):
+def initialize_candidate(candname, system_setup, dispersion_measure=None):
     """Set candidate parameters using information in the json header."""
     corrlist = list(system_setup.corr_ch0_MHz.keys())
+    sblist = ['sb00','sb01','sb02','sb03','sb04','sb05','sb06','sb07',
+              'sb08','sb09','sb10','sb11','sb12','sb13','sb14','sb15']
 
-    if datestring == 'current':
-        local = False
-        headerfile = f"{system_setup.t3dir}/{candname}.json"
-        voltagefiles = [f"{corr}.sas.pvt:/home/ubuntu/data/{candname}_data.out"
-                        for corr in corrlist]
-
-    else:
-        local = True
-        headerfile = f"{system_setup.archivedir}/{datestring}/{candname}.json"
-        voltagefiles = [f"{system_setup.archivedir}/{datestring}/{corr}_{candname}_data.out"
-                        for corr in corrlist]
+    local = True
+    headerfile = f"{system_setup.archivedir}/{candname}/Level2/voltages/T2_{candname}.json"
+    voltagefiles = [f"{system_setup.archivedir}/{candname}/Level2/voltages/{candname}_{sb}_data.out"
+                    for sb in sblist]
 
     tstart = get_tstart_from_json(headerfile)
 
@@ -188,10 +189,12 @@ def initialize_candidate(candname, datestring, system_setup, dispersion_measure=
 def initialize_correlator(fullpol, ntint, cand, system_setup):
     """Set correlator parameters."""
     corrlist = list(system_setup.corr_ch0_MHz.keys())
+    sblist = ['sb00','sb01','sb02','sb03','sb04','sb05','sb06','sb07',
+              'sb08','sb09','sb10','sb11','sb12','sb13','sb14','sb15']
     reftime = cand.time + system_setup.start_time_offset
     npol = 4 if fullpol else 2
     nfint = 1 if fullpol else 8
-    corrfiles = [f"{system_setup.corrdir}/{corr}_{cand.name}_data.out" for corr in corrlist]
+    corrfiles = [f"{system_setup.corrdir}/{cand.name}_{sb}_data.out" for sb in sblist]
 
     CorrelatorParameters = namedtuple('Correlator', 'reftime npol nfint ntint files')
     correlator_params = CorrelatorParameters(reftime, npol, nfint, ntint, corrfiles)
@@ -201,7 +204,9 @@ def initialize_correlator(fullpol, ntint, cand, system_setup):
 def initialize_uvh5(corrparams, cand, system_setup, outrigger_delays=None):
     """Set parameters for writing uvh5 files."""
     corrlist = list(system_setup.corr_ch0_MHz.keys())
-    uvh5files = [f"{system_setup.corrdir}/{cand.name}_{corr}.hdf5" for corr in corrlist]
+    sblist = ['sb00','sb01','sb02','sb03','sb04','sb05','sb06','sb07',
+              'sb08','sb09','sb10','sb11','sb12','sb13','sb14','sb15']
+    uvh5files = [f"{system_setup.corrdir}/{cand.name}_{sb}.hdf5" for sb in sblist]
     visparams = initialize_vis_params(corrparams, cand, outrigger_delays)
 
     UVH5Parameters = namedtuple('UVH5', 'files visparams')
@@ -281,6 +286,9 @@ def parse_visibility_parameters(
         'refidxs': refidxs,
         'antenna_cable_delays': params['outrigger_delays'],
         'baseline_cable_delays': cable_delays,
+        'snapdelays': params['snapdelays'],
+        'ant_itrf': params['ant_itrf'],
+        'nants_telescope': params['nants_telescope'],
         # Time
         'tsamp': tsamp,
         'tobs': tobs,
