@@ -4,3 +4,6 @@ dsa110_T3.egg-info/*
 RELEASE-VERSION
 dsa110_voltage_imaging.egg-info/
 scripts/dask-worker-space/
+scripts/mycomplist.cl
+scripts/delays.dat
+scripts/tmp.complist

@@ -20,7 +20,7 @@ from dsavim.voltages_to_ms import *
 
 def voltages_to_ms(
         candname: str, ntint: int, start_offset: int, end_offset: int,
-        dispersion_measure: float = None, full_pol: bool = False) -> None:
+        dispersion_measure: float = None, full_pol: bool = False, weights: str = None) -> None:
     """
     Correlate voltage files and convert to a measurement set.
 
@@ -41,6 +41,8 @@ def voltages_to_ms(
         The last time sample (after correlation) to write to the measurement
         set. If not provide,d the entire time is converted to a measurement
         set.
+    weights : str
+        (optional) the datestring of any weights to apply pre-correlation
     """
 
     start_offset, end_offset = set_default_if_unset(start_offset, end_offset)
@@ -80,14 +82,20 @@ def voltages_to_ms(
     reftime = get_reftime()
     declination = get_declination_etcd(cand.time)
 
-    generate_delay_table(uvh5params.visparams, reftime, declination)
+    #generate_delay_table(uvh5params.visparams, reftime, declination)
 
     client = Client(name="dsavim", n_workers=2, scheduler_port=9997, dashboard_address="localhost:9996")
 
     rsync_all_files = partial(rsync_component, local=cand.local)
-    correlate = partial(
-        correlate_component, dispersion_measure=cand.dm, ntint=corrparams.ntint,
-        corr_ch0=system_setup.corr_ch0_MHz, npol=corrparams.npol)
+    if weights is None:
+        correlate = partial(
+            correlate_component, dispersion_measure=cand.dm, ntint=corrparams.ntint,
+            corr_ch0=system_setup.corr_ch0_MHz, npol=corrparams.npol, wfile=None)
+    else:
+        correlate = partial(
+            correlate_component, dispersion_measure=cand.dm, ntint=corrparams.ntint,
+            corr_ch0=system_setup.corr_ch0_MHz, npol=corrparams.npol,
+            wfile={'path':'/home/ubuntu/vikram/scratch', 'datestring':weights})
     write_uvh5 = partial(
             uvh5_component, candname=cand.name, corrdir=system_setup.corrdir,
             declination=declination, vis_params=uvh5params.visparams, start_offset=start_offset,
@@ -164,6 +172,12 @@ def parse_commandline_arguments() -> 'argparse.Namespace':
         type=float,
         nargs='?',
         help="dispersion measure to use instead of value in header file")
+    parser.add_argument(
+        '--weights',
+        type=str,
+        nargs='?',
+        default=None,
+        help="datestring of weights files to apply pre-correlation")
 
     args = parser.parse_args()
     return args
@@ -174,4 +188,4 @@ if __name__ == '__main__':
     ARGS = parse_commandline_arguments()
     voltages_to_ms(
         ARGS.candname, ntint=ARGS.ntint, start_offset=ARGS.startoffset,
-        end_offset=ARGS.stopoffset, dispersion_measure=ARGS.dm)
+        end_offset=ARGS.stopoffset, dispersion_measure=ARGS.dm, weights=ARGS.weights)

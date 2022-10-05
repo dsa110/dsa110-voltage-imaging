@@ -84,7 +84,7 @@ def rsync_component(item: Tuple[str], local: bool) -> str:
 
 
 def correlate_component(
-        vfile: str, prev: str, dispersion_measure: float, ntint: int, corr_ch0: dict, npol: int) -> str:
+        vfile: str, prev: str, dispersion_measure: float, ntint: int, corr_ch0: dict, npol: int, wfile: dict) -> str:
 
     """Correlate a file."""    
     sb = re.findall(r"sb\d\d", vfile)[0]
@@ -102,6 +102,9 @@ def correlate_component(
             f"-d delays.dat {'' if npol==4 else '-a'}")
         if dispersion_measure is not None:
             command += f" -m {dispersion_measure}"
+        if wfile is not None:
+            mywfile = f"{wfile['path']}/beamformer_weights_{sb}_{wfile['datestring']}.dat"
+            command += f" -w {mywfile}"
         print(command)
         process = subprocess.Popen(
             command,
@@ -275,6 +278,7 @@ def parse_visibility_parameters(
         if refant in bn.split('-'):
             refidxs += [i]
 
+    print(params['outrigger_delays'])
     cable_delays = get_cable_delays(params['outrigger_delays'], bname)
 
     vis_params = {
@@ -316,6 +320,7 @@ def get_cable_delays(outrigger_delays: dict, bname: list) -> np.ndarray:
     np.ndarray
         The cable delay for each baseline in bname.
     """
+    print(outrigger_delays.keys())
     delays = np.zeros(len(bname), dtype=np.int)
     for i, bn in enumerate(bname):
         ant1, ant2 = bn.split('-')
