@@ -12,6 +12,7 @@ import subprocess
 from pkg_resources import resource_filename
 import numpy as np
 import astropy.units as u
+import astropy.constants as c
 from dask.distributed import Queue, Variable, Lock
 from asyncio import TimeoutError
 import asyncio
@@ -24,6 +25,8 @@ from dsavim.dedisperse import get_dispersion_delay_ms
 from dsavim.generate_uvh5 import calculate_uvw_and_geodelay, get_total_delay
 from dsavim.utils import rsync_file, get_tstart_from_json, get_DM_from_json, load_params
 from dsavim.generate_uvh5 import generate_uvh5
+
+from dsamfs.fringestopping import generate_fringestopping_table
 
 __all__ = [
     'pipeline_component', 'rsync_component', 'correlate_component',
@@ -140,13 +143,26 @@ def get_declination_etcd(tstart):
     return get_declination(get_elevation(tstart)).to_value(u.deg)
 
 
-def generate_delay_table(vis_params, reftime, declination):
+def generate_delay_table(vis_params, reftime, declination, use_fs=True):
     """Generate a table of geometric and cable delays for the correlator."""
-    _buvw, ant_bw = calculate_uvw_and_geodelay(vis_params, reftime, declination*u.deg)
-    total_delay = get_total_delay(
-        vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'],
-        vis_params['antenna_order'])
-    total_delay_string = '\n'.join(total_delay.flatten().astype('str'))+'\n'
+
+    if use_fs:
+        # try using intermediate fringestopping table
+        print("Using fringestopping table...")
+        odelays = {"110": -222, "113": -1394, "114": -3514, "115": -5070}
+        print(odelays)
+        generate_fringestopping_table(vis_params['blen'],declination*np.pi/180.,1,1.,vis_params['antenna_order'],odelays,vis_params['bname'],reftime.mjd)
+        data = np.load('fringestopping_table.npz')
+        bws = -data['bw']/ct.C_GHZ_M 
+        total_delay_string = '\n'.join(bws.flatten().astype('str'))+'\n' 
+
+    else:
+        _buvw, ant_bw = calculate_uvw_and_geodelay(vis_params, reftime, declination*u.deg)
+        total_delay = get_total_delay(
+            vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'],
+            vis_params['antenna_order'])
+        total_delay_string = '\n'.join(total_delay.flatten().astype('str'))+'\n'
+        
     with open('delays.dat', 'w', encoding='utf-8') as f:
         f.write(total_delay_string)
 
@@ -177,7 +193,7 @@ def initialize_candidate(candname, system_setup, dispersion_measure=None):
     voltagefiles = [f"{system_setup.archivedir}/{candname}/Level2/voltages/{candname}_{sb}_data.out"
                     for sb in sblist]
 
-    tstart = get_tstart_from_json(headerfile)
+    tstart = get_tstart_from_json(headerfile) - system_setup.start_time_offset
 
     if dispersion_measure is None:
         dispersion_measure = get_DM_from_json(headerfile)
@@ -268,7 +284,8 @@ def parse_visibility_parameters(
     # determining the observation times.
     tsamp = params['deltat_s']*ntint*u.s
     tobs = tstart + (np.arange(params['nsubint']//ntint)+0.5)*tsamp
-
+    print("Time...",tobs.isot)
+    
     # Get baselines
     blen, bname = get_blen(antenna_order)
     # Get indices for baselines to the reference antenna

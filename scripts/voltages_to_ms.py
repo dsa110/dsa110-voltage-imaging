@@ -16,6 +16,7 @@ import dsautils.cnf as dsc
 
 from dsavim.uvh5_to_ms import uvh5_to_ms
 from dsavim.voltages_to_ms import *
+import sys
 
 
 def voltages_to_ms(
@@ -81,9 +82,12 @@ def voltages_to_ms(
 
     reftime = get_reftime()
     declination = get_declination_etcd(cand.time)
+    print(declination)
+    #declination = 71.6
 
-    #generate_delay_table(uvh5params.visparams, reftime, declination)
-
+    generate_delay_table(uvh5params.visparams, reftime, declination, use_fs=True)
+    #sys.exit(1)
+    
     client = Client(name="dsavim", n_workers=2, scheduler_port=9997, dashboard_address="localhost:9996")
 
     rsync_all_files = partial(rsync_component, local=cand.local)

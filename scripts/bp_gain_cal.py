@@ -41,7 +41,7 @@ def bp_gain(bpcal,candname,gaincalib,frb):
     tb.open(f"{wdir}/calibration/field.ms",nomodify=False)
     tb.putcol('MODEL_DATA',mdl)
     tb.close()
-    gaincal(vis=f"{wdir}/calibration/field.ms",caltable=f"{wdir}/calibration/{candname}.G0",refant="104",gaintype="G",calmode="p",solint="1000s",minsnr=3.0,combine="obs,scan",uvrange=">0.3klambda")
+    gaincal(vis=f"{wdir}/calibration/field.ms",caltable=f"{wdir}/calibration/{candname}.G0",refant="104",gaintype="G",calmode="p",solint="180s",minsnr=3.0,combine="obs,scan",uvrange=">0.3klambda")
 
     # apply gaincal to field and frb
     print(f"Applying calibration to field.ms and frb.ms")

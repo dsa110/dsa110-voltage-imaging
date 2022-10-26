@@ -18,6 +18,7 @@ import casatools as cc
 import casatasks as cst
 import os
 from dsautils import coordinates
+import sys
 
 # function to add model to ms, returning model components
 def add_model_to_ms(msdata,flux_limit=50.,radius_limit=2.,complist_name='mycomplist.cl',ra_pt=100.0,dec_pt=71.66):
@@ -149,24 +150,27 @@ def find_files_with_T2_json(cname,cdir,refsb="sb00"):
 
 # run main
 
-files,date = find_files_with_T2_json(candname,cand_dir)
-print("found files at date:",files,date)
+if len(sys.argv)==2:
 
-# create ms
-print("Creating ms...")
-convert_calibrator_pass_to_ms(
-    cal,
-    date,
-    files,
-    msdir=msdir,
-    hdf5dir=hdf5dir,
-    refmjd=config.refmjd
-   
-)
+    files,date = find_files_with_T2_json(candname,cand_dir)
+    print("found files at date:",files,date)
+
+    # create ms
+    print("Creating ms...")
+    convert_calibrator_pass_to_ms(
+        cal,
+        date,
+        files,
+        msdir=msdir,
+        hdf5dir=hdf5dir,
+        refmjd=config.refmjd
+    )
 
 # add model to ms
 print("Adding model...")
 ms = glob.glob(f'/dataz/dsa110/candidates/{candname}/Level2/calibration/*{candname}.ms')[0]
+cst.delmod(ms)
+print(f"Ready with {ms}")
 my_ra,my_dec,my_flux = add_model_to_ms(ms,ra_pt=ra.deg,dec_pt=dec.deg)
 
 
