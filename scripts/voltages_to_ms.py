@@ -16,11 +16,12 @@ import dsautils.cnf as dsc
 
 from dsavim.uvh5_to_ms import uvh5_to_ms
 from dsavim.voltages_to_ms import *
+import sys
 
 
 def voltages_to_ms(
-        candname: str, datestring: str, ntint: int, start_offset: int, end_offset: int,
-        dispersion_measure: float = None, full_pol: bool = False) -> None:
+        candname: str, ntint: int, start_offset: int, end_offset: int,
+        dispersion_measure: float = None, full_pol: bool = False, weights: str = None) -> None:
     """
     Correlate voltage files and convert to a measurement set.
 
@@ -28,9 +29,6 @@ def voltages_to_ms(
     ----------
     candname : str
         The unique name of the candidate.
-    datestring : str
-        The datestring the observation is archived under. Use 'current' if the
-        data is from the current, unarchived observing run.
     ntint : int
         The number of time samples to integrate together during correlation.
     nfint : int
@@ -44,6 +42,8 @@ def voltages_to_ms(
         The last time sample (after correlation) to write to the measurement
         set. If not provide,d the entire time is converted to a measurement
         set.
+    weights : str
+        (optional) the datestring of any weights to apply pre-correlation
     """
 
     start_offset, end_offset = set_default_if_unset(start_offset, end_offset)
@@ -51,7 +51,7 @@ def voltages_to_ms(
     # The following needs to happen in a subprocess
     system_setup = initialize_system()
 
-    cand = initialize_candidate(candname, datestring, system_setup, dispersion_measure)
+    cand = initialize_candidate(candname, system_setup, dispersion_measure)
     corrparams = initialize_correlator(full_pol, ntint, cand, system_setup)
 
     # TODO: Look up outrigger delays in influx instead of using these hardcoded values
@@ -82,15 +82,24 @@ def voltages_to_ms(
 
     reftime = get_reftime()
     declination = get_declination_etcd(cand.time)
+    print(declination)
+    #declination = 71.6
 
-    generate_delay_table(uvh5params.visparams, reftime, declination)
-
-    client = Client(name="dsavim", n_workers=2, scheduler_port=9999, dashboard_address="localhost:9998")
+    generate_delay_table(uvh5params.visparams, reftime, declination, use_fs=True)
+    #sys.exit(1)
+    
+    client = Client(name="dsavim", n_workers=2, scheduler_port=9997, dashboard_address="localhost:9996")
 
     rsync_all_files = partial(rsync_component, local=cand.local)
-    correlate = partial(
-        correlate_component, dispersion_measure=cand.dm, ntint=corrparams.ntint,
-        corr_ch0=system_setup.corr_ch0_MHz, npol=corrparams.npol)
+    if weights is None:
+        correlate = partial(
+            correlate_component, dispersion_measure=cand.dm, ntint=corrparams.ntint,
+            corr_ch0=system_setup.corr_ch0_MHz, npol=corrparams.npol, wfile=None)
+    else:
+        correlate = partial(
+            correlate_component, dispersion_measure=cand.dm, ntint=corrparams.ntint,
+            corr_ch0=system_setup.corr_ch0_MHz, npol=corrparams.npol,
+            wfile={'path':'/home/ubuntu/vikram/scratch', 'datestring':weights})
     write_uvh5 = partial(
             uvh5_component, candname=cand.name, corrdir=system_setup.corrdir,
             declination=declination, vis_params=uvh5params.visparams, start_offset=start_offset,
@@ -111,7 +120,7 @@ def voltages_to_ms(
     client.close()
 
     # Convert uvh5 files to a measurement set
-    msname = f"{system_setup.msdir}{candname}"
+    msname = f"{system_setup.archivedir}/{candname}/Level2/{candname}"
     uvh5_to_ms(
         cand.name, cand.time, uvh5params.files, msname, corrparams.reftime,
         template_path=None)
@@ -145,12 +154,6 @@ def parse_commandline_arguments() -> 'argparse.Namespace':
         type=str,
         help="unique candidate name")
     parser.add_argument(
-        '--datestring',
-        type=str,
-        help="datestring of archived candidate",
-        nargs='?',
-        default='current')
-    parser.add_argument(
         '--ntint',
         type=int,
         nargs='?',
@@ -173,6 +176,12 @@ def parse_commandline_arguments() -> 'argparse.Namespace':
         type=float,
         nargs='?',
         help="dispersion measure to use instead of value in header file")
+    parser.add_argument(
+        '--weights',
+        type=str,
+        nargs='?',
+        default=None,
+        help="datestring of weights files to apply pre-correlation")
 
     args = parser.parse_args()
     return args
@@ -182,5 +191,5 @@ if __name__ == '__main__':
     print("Running main program")
     ARGS = parse_commandline_arguments()
     voltages_to_ms(
-        ARGS.candname, ARGS.datestring, ntint=ARGS.ntint, start_offset=ARGS.startoffset,
-        end_offset=ARGS.stopoffset, dispersion_measure=ARGS.dm)
+        ARGS.candname, ntint=ARGS.ntint, start_offset=ARGS.startoffset,
+        end_offset=ARGS.stopoffset, dispersion_measure=ARGS.dm, weights=ARGS.weights)

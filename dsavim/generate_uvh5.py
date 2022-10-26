@@ -10,6 +10,7 @@ import astropy.constants as c
 from dsamfs.io import initialize_uvh5_file, update_uvh5_file
 from dsacalib.fringestopping import calc_uvw, calc_uvw_interpolate
 import dsacalib.constants as ct
+from antpos import utils
 
 def generate_uvh5(
         name: str, pt_dec: 'astropy.Quantity', corrfile: str, vis_params: dict,
@@ -62,9 +63,14 @@ def generate_uvh5(
     nfreq_out = size_params['chunk_shape'][2]
 
     # Generate a uvh5 file for each corr node
-    corr = re.findall(r"corr[0-9][0-9]", corrfile)[0]
-
-    outname = f"{name}_{corr}.hdf5"
+    sb = re.findall(r"sb[0-9][0-9]", corrfile)[0]
+    _corrlist = {'sb00':'corr03','sb01':'corr04','sb02':'corr05','sb03':'corr06','sb04':'corr07',
+                 'sb05':'corr08','sb06':'corr10','sb07':'corr11','sb08':'corr12','sb09':'corr14',
+                 'sb10':'corr15','sb11':'corr16','sb12':'corr18','sb13':'corr19','sb14':'corr21',
+                 'sb15':'corr22'}
+    corr = _corrlist[sb]
+    
+    outname = f"{name}_{sb}.hdf5"
     # Dont overwrite if the uvh5 file already exists
     if os.path.exists(outname):
         return outname
@@ -83,7 +89,9 @@ def generate_uvh5(
             pt_dec.to_value(u.rad),
             vis_params['antenna_order'],
             fobs_corr,
-            vis_params['antenna_cable_delays'])
+            vis_params['snapdelays'],
+            vis_params['ant_itrf'],
+            vis_params['nants_telescope'])
         with open(corrfile, 'rb') as cfhandler:
             if start_offset is not None:
                 # Seek in bytes, and we have 4 bytes per item (float32)

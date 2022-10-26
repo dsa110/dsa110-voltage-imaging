@@ -1,6 +1,6 @@
 voltage_corr:
-    msdir: "/media/ubuntu/data/dsa110/imaging/"
-    archivedir: "/media/ubuntu/ssd/T3/"
+    msdir: "/media/ubuntu/ssd/data/"
+    archivedir: "/dataz/dsa110/candidates"
     corrdir: "/media/ubuntu/ssd/data/"
     T3dir: "/home/ubuntu/data/T3/"
     nchan: 8192 # native
