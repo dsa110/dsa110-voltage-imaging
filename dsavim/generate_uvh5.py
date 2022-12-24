@@ -230,7 +230,7 @@ def get_total_delay(
         ant1, ant2 = bn.split('-')
         idx1 = antenna_order.index(int(ant1))
         idx2 = antenna_order.index(int(ant2))
-        total_delay[:, bni] = baseline_cable_delay[bni] + (
+        total_delay[:, bni] = 1.0*baseline_cable_delay[bni] + (
             (ant_bw[:, idx1]-ant_bw[:, idx2])*u.m/c.c).to_value(u.nanosecond)
     # Reshape to match data shape
     total_delay = total_delay[:, :, np.newaxis, np.newaxis]

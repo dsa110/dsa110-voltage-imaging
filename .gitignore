@@ -7,3 +7,5 @@ scripts/dask-worker-space/
 scripts/mycomplist.cl
 scripts/delays.dat
 scripts/tmp.complist
+scripts/.ipynb_checkpoints/
+scripts/fringestopping_table.npz
