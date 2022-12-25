@@ -120,7 +120,7 @@ def voltages_to_ms(
     client.close()
 
     # Convert uvh5 files to a measurement set
-    msname = f"{system_setup.archivedir}/{candname}/Level2/{candname}"
+    msname = f"{system_setup.T3dir}/{candname}/{candname}"
     uvh5_to_ms(
         cand.name, cand.time, uvh5params.files, msname, corrparams.reftime,
         template_path=None)

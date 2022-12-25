@@ -21,6 +21,23 @@ import os
 from dsautils import coordinates
 import sys
 
+# get frbpos
+def frbpos_from_json(cname,cdir):
+
+    # load in T2 json
+    try:
+        canddata = json.load(open(cdir+"/Level2/voltages/T2_"+cname+".json"))
+    except:
+        print("Couldnt open T2 json.")
+        return None
+
+    # find files from candidate dir
+    canddata = canddata[cname]
+    ra = canddata["ra"]
+    dec = canddata["dec"]
+    
+    return SkyCoord(ra*u.deg,dec*u.deg)
+
 # find files
 def find_files_with_T2_json(cname,cdir,dt=0.,refsb="sb00"):
     
@@ -61,18 +78,16 @@ duration = 5.*u.min # length of output
 filelength = 5.*u.min # length of input files
 
 # generate cal source
-ra = sys.argv[2]
-dec = sys.argv[3]
-frbpos = SkyCoord(ra,dec,unit=(u.hourangle, u.deg))
-idict = rfc_lookup(frbpos,dra=8.5,ddec=1.0,thresh=0.04,findNearest=False)
+frbpos = frbpos_from_json(candname,cand_dir)
+idict = rfc_lookup(frbpos,dra=8.5,ddec=1.0,thresh=0.05,findNearest=False)
+print(idict)
 
 # make directory and save idict
-odir = "/media/ubuntu/data/vikram/localization_test/"+candname+"/"
+odir = "/media/ubuntu/ssd/localization_processing/"+candname+"/"
 msdir = odir
 os.system("mkdir -p "+odir)
-np.savez(odir+"idict.npz",idict=idict)
+np.savez(odir+"rfc_idict.npz",idict=idict)
 
-print(idict)
 
 for i in np.arange(len(idict['sep'])):
     cal = generate_calibrator_source(idict['jname'][i],ra=idict['position'][i].ra,dec=idict['position'][i].dec)

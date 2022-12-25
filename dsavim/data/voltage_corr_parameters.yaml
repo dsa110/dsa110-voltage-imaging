@@ -2,7 +2,7 @@ voltage_corr:
     msdir: "/media/ubuntu/ssd/data/"
     archivedir: "/dataz/dsa110/candidates"
     corrdir: "/media/ubuntu/ssd/data/"
-    T3dir: "/home/ubuntu/data/T3/"
+    T3dir: "/media/ubuntu/ssd/localization_processing/"
     nchan: 8192 # native
     nchan_corr: 384
     deltaf_MHz: -0.030517578125 # native

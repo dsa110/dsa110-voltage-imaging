@@ -108,7 +108,7 @@ def get_radec_T2_json(cname,cdir):
 # set up defaults
 candname = sys.argv[1]
 cand_dir = "/dataz/dsa110/candidates/"+candname
-msdir = cand_dir+"/Level2/calibration/"
+msdir = "/media/ubuntu/ssd/localization_processing/"+candname
 hdf5dir = cand_dir+"/Level2/calibration/"
 ra, dec = get_radec_T2_json(candname,cand_dir)
 cal = generate_calibrator_source(candname, ra=ra, dec=dec)
@@ -167,11 +167,13 @@ if len(sys.argv)==2:
     )
 
 # add model to ms
-print("Adding model...")
-ms = glob.glob(f'/dataz/dsa110/candidates/{candname}/Level2/calibration/*{candname}.ms')[0]
-cst.delmod(ms)
-print(f"Ready with {ms}")
-my_ra,my_dec,my_flux = add_model_to_ms(ms,ra_pt=ra.deg,dec_pt=dec.deg)
+if len(sys.argv)==3:
+    print("Adding model...")
+    ms = glob.glob(f'/dataz/dsa110/candidates/{candname}/Level2/calibration/*{candname}.ms')[0]
+    cst.delmod(ms)
+    print(f"Ready with {ms}")
+    my_ra,my_dec,my_flux = add_model_to_ms(ms,ra_pt=ra.deg,dec_pt=dec.deg)
+
 
 
 
