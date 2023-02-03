@@ -140,7 +140,7 @@ def find_files_with_T2_json(cname,cdir,refsb="sb00"):
     files = sorted(glob.glob(f"{cdir}/Level2/calibration/*_{refsb}.hdf5"))
     datetimes = [f.split("/")[-1][:19] for f in files]
     dates = np.unique([dt[:10] for dt in datetimes])
-    transit_files = []
+    transit_files = []    
     for dt in datetimes:
         if cal_in_datetime(dt,Time(mjd,format='mjd'), duration, filelength):            
             transit_files += [dt]

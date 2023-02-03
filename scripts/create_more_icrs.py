@@ -72,21 +72,61 @@ def find_files_with_T2_json(cname,cdir,dt=0.,refsb="sb00"):
 
 # set up defaults
 candname = sys.argv[1]
+inspect = False
+if len(sys.argv)>2:
+    inspect=True
 cand_dir = "/dataz/dsa110/candidates/"+candname
 hdf5dir = cand_dir+"/Level2/calibration/"
 duration = 5.*u.min # length of output
 filelength = 5.*u.min # length of input files
-
-# generate cal source
-frbpos = frbpos_from_json(candname,cand_dir)
-idict = rfc_lookup(frbpos,dra=8.5,ddec=1.0,thresh=0.05,findNearest=False,findBrightest=True)
-print(idict)
-#sys.exit(1)
-
-# make directory and save idict
-odir = "/media/ubuntu/ssd/localization_processing/"+candname+"/"
+odir = "/media/ubuntu/data/localization_processing/"+candname+"/"
 msdir = odir
-np.savez(odir+"rfc_idict.npz",idict=idict)
+
+
+# generate cal sources
+frbpos = frbpos_from_json(candname,cand_dir)
+idict = rfc_lookup(frbpos,dra=8.5,ddec=1.5,thresh=0.01,findNearest=False,findBrightest=True,nBrightest=24)
+#print(idict)
+
+# find existing sources
+mss = glob.glob(f"{odir}/*_J*.ms")
+existing_ms = []
+for fl in mss:
+    existing_ms.append(fl[-13:-3])
+made_file = []
+for src in idict['jname']:
+    if src in existing_ms:
+        made_file.append(True)
+    else:
+        made_file.append(False)
+
+myn = 13
+nfiles = 0
+make_file = []
+for i in np.arange(len(made_file)):
+
+    dt = ((idict['position'][i].ra.deg - frbpos.ra.deg)/360.) # in days
+    files,date = find_files_with_T2_json(candname,cand_dir,dt=dt)
+    if len(files)>0:
+        print(i,'.. CAN DO:',idict['jname'][i],idict['flux'][i],idict['sep'][i],made_file[i])
+        if made_file[i] is True:
+            nfiles += 1
+            make_file.append(False)
+        if made_file[i] is False:
+            if nfiles<myn:
+                print('Will process above...')
+                make_file.append(True)
+                nfiles += 1
+            else:
+                make_file.append(False)
+    else:
+        print(i,'.. NOT IN DATA:',idict['jname'][i],idict['flux'][i],idict['sep'][i],made_file[i])
+        make_file.append(False)
+
+if inspect:
+    sys.exit(1)
+    
+np.savez(odir+"rfc_idict_more.npz",idict=idict)
 
 
 for i in np.arange(len(idict['sep'])):
@@ -96,15 +136,18 @@ for i in np.arange(len(idict['sep'])):
     print("found files at date:",files,date)
 
     # create ms
-    print(f"Creating ms {i+1} of 2...")
-    convert_calibrator_pass_to_ms(
-        cal,
-        date,
-        files,
-        msdir=msdir,
-        hdf5dir=hdf5dir,
-        refmjd=config.refmjd
-    )
+
+    if make_file[i] is True:
+        print(f"Creating ms...")
+        convert_calibrator_pass_to_ms(
+            cal,
+            date,
+            files,
+            msdir=msdir,
+            hdf5dir=hdf5dir,
+            refmjd=config.refmjd
+        )
+        
 
 
     

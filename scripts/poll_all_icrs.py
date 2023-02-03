@@ -35,7 +35,7 @@ def frbpos_from_json(cname,cdir):
     canddata = canddata[cname]
     ra = canddata["ra"]
     dec = canddata["dec"]
-
+    
     return SkyCoord(ra*u.deg,dec*u.deg)
 
 # find files
@@ -63,9 +63,9 @@ def find_files_with_T2_json(cname,cdir,dt=0.,refsb="sb00"):
     datetimes = [f.split("/")[-1][:19] for f in files]
     dates = np.unique([dt[:10] for dt in datetimes])
     transit_files = []
-    for dt in datetimes:
-        if cal_in_datetime(dt,Time(mjd,format='mjd'), duration, filelength):            
-            transit_files += [dt]
+    for mydt in datetimes:
+        if cal_in_datetime(mydt,Time(mjd,format='mjd'), duration, filelength):            
+            transit_files += [mydt]
 
     return transit_files,dates[0]
 
@@ -80,31 +80,16 @@ filelength = 5.*u.min # length of input files
 # generate cal source
 frbpos = frbpos_from_json(candname,cand_dir)
 idict = rfc_lookup(frbpos,dra=8.5,ddec=1.0,thresh=0.05,findNearest=False,findBrightest=True)
-print(idict)
-#sys.exit(1)
 
 # make directory and save idict
 odir = "/media/ubuntu/ssd/localization_processing/"+candname+"/"
 msdir = odir
-np.savez(odir+"rfc_idict.npz",idict=idict)
-
 
 for i in np.arange(len(idict['sep'])):
     cal = generate_calibrator_source(idict['jname'][i],ra=idict['position'][i].ra,dec=idict['position'][i].dec)
     dt = ((idict['position'][i].ra.deg - frbpos.ra.deg)/360.) # in days
     files,date = find_files_with_T2_json(candname,cand_dir,dt=dt)
-    print("found files at date:",files,date)
-
-    # create ms
-    print(f"Creating ms {i+1} of 2...")
-    convert_calibrator_pass_to_ms(
-        cal,
-        date,
-        files,
-        msdir=msdir,
-        hdf5dir=hdf5dir,
-        refmjd=config.refmjd
-    )
+    print(idict['jname'][i],"found files at date:",files,date)
 
 
     

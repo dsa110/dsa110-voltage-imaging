@@ -6,7 +6,7 @@ import glob
 import os
 import casatools as cc
 
-def bp_gain(bpcal,candname,gaincalib,frb,model_field=False):
+def bp_gain(bpcal,candname,gaincalib,frb,model_field=False,flux_Jy=7.6):
 
     wdir = f"/media/ubuntu/ssd/localization_processing/{candname}/"
     if gaincalib is None:
@@ -17,11 +17,11 @@ def bp_gain(bpcal,candname,gaincalib,frb,model_field=False):
     # run bandpass
     print(f"Bandpass calibration on {bpcal}")
     flagdata(vis=bpcal,mode='unflag')
-    bandpass(vis=bpcal,caltable=f"{wdir}/{candname}.B0",refant="104",solint="inf",bandtype="B",combine="obs,scan",uvrange=">0.3klambda",smodel=[7.6,0.,0.,0.])
+    bandpass(vis=bpcal,caltable=f"{wdir}/{candname}.B0",refant="104",solint="inf",bandtype="B",combine="obs,scan",uvrange=">0.3klambda",smodel=[flux_Jy,0.,0.,0.])
     
     # apply bandpass 
     print(f"Gain calibration on {gaincalib}")
-    applycal(vis=gaincalib,gaintable=[f"{wdir}/{candname}.B0"])
+    applycal(vis=gaincalib,gaintable=[bpcal])
     os.system(f"rm -rf {wdir}/field.ms*")
     os.system(f"rm -rf {wdir}/frb.ms*")
     os.system(f"rm -rf {wdir}/frb_bp.ms*")
@@ -52,7 +52,7 @@ def bp_gain(bpcal,candname,gaincalib,frb,model_field=False):
         split(vis=frb,outputvis=f"{wdir}/frb.ms",datacolumn="DATA")
         applycal(vis=f"{wdir}/frb.ms",gaintable=[f"{wdir}/{candname}.B0",f"{wdir}/{candname}.G0"],interp=['nearest','linear'])
     split(vis=frb,outputvis=f"{wdir}/frb_bp.ms",datacolumn="DATA")        
-    applycal(vis=f"{wdir}/frb_bp.ms",gaintable=[f"{wdir}/{candname}.B0"],interp=['nearest'])
+    applycal(vis=f"{wdir}/frb_bp.ms",gaintable=[bpcal],interp=['nearest'])
     
 def parse_commandline_arguments() -> 'argparse.Namespace':
     """ Parse command line args. """
@@ -92,7 +92,7 @@ def parse_commandline_arguments() -> 'argparse.Namespace':
 if __name__ == '__main__':
     print("Running main program")
     ARGS = parse_commandline_arguments()
-    bp_gain(ARGS.bpcal,ARGS.candname,ARGS.gaincal,ARGS.frb,model_field=ARGS.model_field)
+    bp_gain(f"/media/ubuntu/data/localization_processing/{ARGS.candname}/{ARGS.candname}.B0",ARGS.candname,ARGS.gaincal,ARGS.frb,model_field=ARGS.model_field)
 
 
 

@@ -85,7 +85,7 @@ def voltages_to_ms(
     print(declination)
     #declination = 71.6
 
-    generate_delay_table(uvh5params.visparams, reftime, declination, use_fs=True)
+    generate_delay_table(uvh5params.visparams, reftime, declination, use_fs=False)
     #sys.exit(1)
     
     client = Client(name="dsavim", n_workers=2, scheduler_port=9997, dashboard_address="localhost:9996")
