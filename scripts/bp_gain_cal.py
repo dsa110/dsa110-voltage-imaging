@@ -6,7 +6,8 @@ import glob
 import os
 import casatools as cc
 
-def bp_gain(bpcal,candname,gaincalib,frb,model_field=False,flux_Jy=7.6):
+def bp_gain(bpcal,candname,gaincalib,frb,model_field=False,flux_Jy=7.6,
+            refant="104"):
 
     wdir = f"/media/ubuntu/ssd/localization_processing/{candname}/"
     if gaincalib is None:
@@ -17,11 +18,11 @@ def bp_gain(bpcal,candname,gaincalib,frb,model_field=False,flux_Jy=7.6):
     # run bandpass
     print(f"Bandpass calibration on {bpcal}")
     flagdata(vis=bpcal,mode='unflag')
-    bandpass(vis=bpcal,caltable=f"{wdir}/{candname}.B0",refant="104",solint="inf",bandtype="B",combine="obs,scan",uvrange=">0.3klambda",smodel=[flux_Jy,0.,0.,0.])
+    bandpass(vis=bpcal,caltable=f"{wdir}/{candname}.B0",refant=refant,solint="inf",bandtype="B",combine="obs,scan",uvrange=">0.3klambda",smodel=[flux_Jy,0.,0.,0.])
     
     # apply bandpass 
     print(f"Gain calibration on {gaincalib}")
-    applycal(vis=gaincalib,gaintable=[bpcal])
+    applycal(vis=gaincalib,gaintable=[f"{wdir}/{candname}.B0"])
     os.system(f"rm -rf {wdir}/field.ms*")
     os.system(f"rm -rf {wdir}/frb.ms*")
     os.system(f"rm -rf {wdir}/frb_bp.ms*")
@@ -43,7 +44,7 @@ def bp_gain(bpcal,candname,gaincalib,frb,model_field=False,flux_Jy=7.6):
         tb.open(f"{wdir}/field.ms",nomodify=False)
         tb.putcol('MODEL_DATA',mdl)
         tb.close()
-        gaincal(vis=f"{wdir}/field.ms",caltable=f"{wdir}/{candname}.G0",refant="104",gaintype="G",calmode="p",solint="180s",minsnr=3.0,combine="obs,scan",uvrange=">0.3klambda")
+        gaincal(vis=f"{wdir}/field.ms",caltable=f"{wdir}/{candname}.G0",refant=refant,gaintype="G",calmode="p",solint="180s",minsnr=3.0,combine="obs,scan",uvrange=">0.3klambda")
 
     # apply gaincal to field and frb
     print(f"Applying calibration to field.ms and frb.ms")
@@ -52,7 +53,7 @@ def bp_gain(bpcal,candname,gaincalib,frb,model_field=False,flux_Jy=7.6):
         split(vis=frb,outputvis=f"{wdir}/frb.ms",datacolumn="DATA")
         applycal(vis=f"{wdir}/frb.ms",gaintable=[f"{wdir}/{candname}.B0",f"{wdir}/{candname}.G0"],interp=['nearest','linear'])
     split(vis=frb,outputvis=f"{wdir}/frb_bp.ms",datacolumn="DATA")        
-    applycal(vis=f"{wdir}/frb_bp.ms",gaintable=[bpcal],interp=['nearest'])
+    applycal(vis=f"{wdir}/frb_bp.ms",gaintable=[f"{wdir}/{candname}.B0"],interp=['nearest'])
     
 def parse_commandline_arguments() -> 'argparse.Namespace':
     """ Parse command line args. """
@@ -82,6 +83,16 @@ def parse_commandline_arguments() -> 'argparse.Namespace':
         default=None,
         help="frb ms")
     parser.add_argument(
+        '--flux-jy',
+        type=float,
+        default=7.6,
+        help="assumed flux density of the bandpass calibrator (Jy)")
+    parser.add_argument(
+        '--refant',
+        type=str,
+        default="104",
+        help="reference antenna for bandpass/gain solves")
+    parser.add_argument(
         '--model_field',
         action='store_true')
     parser.set_defaults(model_field=False)
@@ -92,7 +103,9 @@ def parse_commandline_arguments() -> 'argparse.Namespace':
 if __name__ == '__main__':
     print("Running main program")
     ARGS = parse_commandline_arguments()
-    bp_gain(f"/media/ubuntu/data/localization_processing/{ARGS.candname}/{ARGS.candname}.B0",ARGS.candname,ARGS.gaincal,ARGS.frb,model_field=ARGS.model_field)
+    bp_gain(ARGS.bpcal,ARGS.candname,ARGS.gaincal,ARGS.frb,
+            model_field=ARGS.model_field,flux_Jy=ARGS.flux_jy,
+            refant=ARGS.refant)
 
 
 

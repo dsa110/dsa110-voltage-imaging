@@ -16,7 +16,7 @@ from astropy.coordinates import SkyCoord
 
 RFCFILE = resource_filename('dsavim', 'data/rfc_2022b_cat.txt')
 
-def rfc_lookup(pos: 'astropy.coordinates.SkyCoord', dra: float = 15., ddec: float = 1.5, thresh: float = 0.04, findNearest: bool = False) -> dict:
+def rfc_lookup(pos: 'astropy.coordinates.SkyCoord', dra: float = 15., ddec: float = 1.5, thresh: float = 0.04, findNearest: bool = False, findBrightest: bool = False, nBrightest: int = 10) -> dict:
     """look up nearby RFC calibrators"""
 
     cod,nam1,jname,rhr,rmn,rsec,ddeg,dmn,dsec,D_alp,D_Del,Corr,Obs,Sband,sflux,Cband,sflux,Xband,xflux,Uband,uflux,Kband,kflux,Type,Cat = np.genfromtxt(RFCFILE,dtype=str).transpose()
@@ -59,6 +59,26 @@ def rfc_lookup(pos: 'astropy.coordinates.SkyCoord', dra: float = 15., ddec: floa
         sep = poses.separation(pos)
         seps.append(sep.deg)
 
+    # do findBrightest if needed
+    ncals = nBrightest
+    if findBrightest:
+        if len(ofluxes)>ncals:
+
+            ooposes = []
+            oofluxes = []
+            oojnames = []
+            oseps = []
+            ifluxes = np.argsort(np.abs(np.asarray(ofluxes)))
+
+            for i in np.arange(ncals):
+                ii = ifluxes[-i-1]
+                ooposes.append(oposes[ii])
+                oofluxes.append(ofluxes[ii])
+                oojnames.append(ojnames[ii])
+                oseps.append(seps[ii])
+
+            return {"jname":oojnames, "position":ooposes, "flux":oofluxes, "sep":oseps}
+            
     # do the findNearest if needed
     if findNearest:
         ooposes = []
@@ -106,13 +126,13 @@ def load_params(paramfile: str) -> dict:
     """Load parameters for voltage correlation from a yaml file."""
     with open(paramfile) as yamlf:
         voltage_corr_params = yaml.load(yamlf, Loader=yaml.FullLoader)['voltage_corr']
-    conf = cnf.Conf(use_etcd=False)
+    conf = cnf.Conf(use_etcd=True)
     corrconf = conf.get('corr')
     mfsconf = conf.get('fringe')
 
     voltage_corr_params['ch0'] = corrconf['ch0']
     voltage_corr_params['f0_GHz'] = corrconf['f0_GHz']
-    voltage_corr_params['antennas'] = list(corrconf['antenna_order'].values())[:63]
+    voltage_corr_params['antennas'] = list(corrconf['antenna_order'].values())
     ant_od = corrconf['antenna_order']
     antenna_order = [int(ad) for ad in list(ant_od.values())]
     voltage_corr_params['outrigger_delays'] = mfsconf['outrigger_delays']

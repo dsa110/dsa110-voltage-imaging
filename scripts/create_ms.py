@@ -83,61 +83,33 @@ def add_model_to_ms(msdata,flux_limit=50.,radius_limit=2.,complist_name='mycompl
     return m_ra,m_dec,m_flux
 
 # get RA and DEC to phase to
-def get_radec_T2_json(cname,cdir):
-    """
-    cname (str): name of candidate.
-    cdir (str): directory where candidate is archived (according to plan)
-    Returns:
-    ra, dec
-    """
-
-    # load in T2 json
-    try:
-        canddata = json.load(open(cdir+"/Level2/voltages/T2_"+cname+".json"))
-    except:
-        print("Couldnt open T2 json.")
-        return None
-
-    # get ra and dec
-    canddata = canddata[cname]
-    mjd = canddata['mjds']
-    ra, dec = coordinates.get_pointing(ibeam=128,obstime=Time(mjd,format='mjd'))
-    return ra, dec
+def get_radec(cname):
+    """FRB phase-centre position + burst MJD from the M8 archive
+    (dsavim.metadata; replaces the T3 T2_<cand>.json reader)."""
+    from dsavim.metadata import load_burst
+    burst = load_burst(cname)
+    return burst.ra_deg*u.deg, burst.dec_deg*u.deg, burst.t_peak.mjd
     
 
 # set up defaults
 candname = sys.argv[1]
 cand_dir = "/dataz/dsa110/candidates/"+candname
 msdir = "/media/ubuntu/ssd/localization_processing/"+candname
-hdf5dir = cand_dir+"/Level2/calibration/"
-ra, dec = get_radec_T2_json(candname,cand_dir)
+hdf5dir = cand_dir+"/calibration/"
+ra, dec, cand_mjd = get_radec(candname)
+print(ra, dec)
+#ra=358.71*u.deg
+#dec=1.22*u.deg
 cal = generate_calibrator_source(candname, ra=ra, dec=dec)
-duration = 5.*u.min # length of output
+duration = 10.*u.min # length of output
 filelength = 5.*u.min # length of input files
 
-
 # find files
-def find_files_with_T2_json(cname,cdir,refsb="sb00"):
-    
-    """
-    cname (str): name of candidate.
-    cdir (str): directory where candidate is archived (according to plan)
-    refsb (str): sb used to find files (default sb00)
-    Returns:
-    list of files, date
-    """
-    
-    # load in T2 json
-    try:
-        canddata = json.load(open(cdir+"/Level2/voltages/T2_"+cname+".json"))
-    except:
-        print("Couldnt open T2 json.")
-        return None
+def find_transit_files(cname, cdir, mjd, refsb="sb00"):
 
-    # find files from candidate dir
-    canddata = canddata[cname]
-    mjd = canddata['mjds']
-    files = sorted(glob.glob(f"{cdir}/Level2/calibration/*_{refsb}.hdf5"))
+    """Calibration-archive HDF5s (cdir/calibration/, hard-linked by C3
+    from operations/correlator) overlapping `duration` around `mjd`."""
+    files = sorted(glob.glob(f"{cdir}/calibration/*_{refsb}.hdf5"))
     datetimes = [f.split("/")[-1][:19] for f in files]
     dates = np.unique([dt[:10] for dt in datetimes])
     transit_files = []    
@@ -150,9 +122,9 @@ def find_files_with_T2_json(cname,cdir,refsb="sb00"):
 
 # run main
 
-if len(sys.argv)==2:
+if len(sys.argv)>=2:
 
-    files,date = find_files_with_T2_json(candname,cand_dir)
+    files,date = find_transit_files(candname, cand_dir, cand_mjd)
     print("found files at date:",files,date)
 
     # create ms
@@ -169,7 +141,7 @@ if len(sys.argv)==2:
 # add model to ms
 if len(sys.argv)==3:
     print("Adding model...")
-    ms = glob.glob(f'/dataz/dsa110/candidates/{candname}/Level2/calibration/*{candname}.ms')[0]
+    ms = glob.glob(f'{msdir}/*_{candname}.ms')[0]
     cst.delmod(ms)
     print(f"Ready with {ms}")
     my_ra,my_dec,my_flux = add_model_to_ms(ms,ra_pt=ra.deg,dec_pt=dec.deg)

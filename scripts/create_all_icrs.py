@@ -21,25 +21,14 @@ import os
 from dsautils import coordinates
 import sys
 
-# get frbpos
-def frbpos_from_json(cname,cdir):
-
-    # load in T2 json
-    try:
-        canddata = json.load(open(cdir+"/Level2/voltages/T2_"+cname+".json"))
-    except:
-        print("Couldnt open T2 json.")
-        return None
-
-    # find files from candidate dir
-    canddata = canddata[cname]
-    ra = canddata["ra"]
-    dec = canddata["dec"]
-
-    return SkyCoord(ra*u.deg,dec*u.deg)
+# get frbpos (M8 archive; replaces the T3 T2_<cand>.json reader)
+def frbpos_from_archive(cname):
+    from dsavim.metadata import load_burst
+    burst = load_burst(cname)
+    return SkyCoord(burst.ra_deg*u.deg, burst.dec_deg*u.deg), burst.t_peak.mjd
 
 # find files
-def find_files_with_T2_json(cname,cdir,dt=0.,refsb="sb00"):
+def find_transit_files(cname,cdir,dt=0.,refsb="sb00"):
     
     """
     cname (str): name of candidate.
@@ -49,17 +38,8 @@ def find_files_with_T2_json(cname,cdir,dt=0.,refsb="sb00"):
     list of files, date
     """
     
-    # load in T2 json
-    try:
-        canddata = json.load(open(cdir+"/Level2/voltages/T2_"+cname+".json"))
-    except:
-        print("Couldnt open T2 json.")
-        return None
-
-    # find files from candidate dir
-    canddata = canddata[cname]
-    mjd = canddata['mjds'] + dt
-    files = sorted(glob.glob(f"{cdir}/Level2/calibration/*_{refsb}.hdf5"))
+    mjd = cand_mjd + dt
+    files = sorted(glob.glob(f"{cdir}/calibration/*_{refsb}.hdf5"))
     datetimes = [f.split("/")[-1][:19] for f in files]
     dates = np.unique([dt[:10] for dt in datetimes])
     transit_files = []
@@ -73,15 +53,14 @@ def find_files_with_T2_json(cname,cdir,dt=0.,refsb="sb00"):
 # set up defaults
 candname = sys.argv[1]
 cand_dir = "/dataz/dsa110/candidates/"+candname
-hdf5dir = cand_dir+"/Level2/calibration/"
+hdf5dir = cand_dir+"/calibration/"
 duration = 5.*u.min # length of output
 filelength = 5.*u.min # length of input files
 
 # generate cal source
-frbpos = frbpos_from_json(candname,cand_dir)
-idict = rfc_lookup(frbpos,dra=8.5,ddec=1.0,thresh=0.05,findNearest=False,findBrightest=True)
+frbpos, cand_mjd = frbpos_from_archive(candname)
+idict = rfc_lookup(frbpos,dra=8.5,ddec=1.3,thresh=0.02,findNearest=False,findBrightest=True,nBrightest=10)
 print(idict)
-#sys.exit(1)
 
 # make directory and save idict
 odir = "/media/ubuntu/ssd/localization_processing/"+candname+"/"
@@ -92,11 +71,11 @@ np.savez(odir+"rfc_idict.npz",idict=idict)
 for i in np.arange(len(idict['sep'])):
     cal = generate_calibrator_source(idict['jname'][i],ra=idict['position'][i].ra,dec=idict['position'][i].dec)
     dt = ((idict['position'][i].ra.deg - frbpos.ra.deg)/360.) # in days
-    files,date = find_files_with_T2_json(candname,cand_dir,dt=dt)
+    files,date = find_transit_files(candname,cand_dir,dt=dt)
     print("found files at date:",files,date)
 
     # create ms
-    print(f"Creating ms {i+1} of 2...")
+    print(f"Creating ms {i+1} of {len(idict['sep'])}...")
     convert_calibrator_pass_to_ms(
         cal,
         date,

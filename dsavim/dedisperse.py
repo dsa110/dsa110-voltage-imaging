@@ -13,7 +13,7 @@ def dedisperse_and_select_times(
     assert len(freq_GHz) == nfreqs
 
     dispersion_delay_ms = get_dispersion_delay_ms(freq_GHz, dispersion_measure, ref_freq_GHz)
-    dispersion_delay_tbin = np.round(dispersion_delay_ms/sample_time_ms).astype(np.int)
+    dispersion_delay_tbin = np.round(dispersion_delay_ms/sample_time_ms).astype(int)
 
     vis_out = np.zeros((ntbins, nbaselines, nfreqs, npols), vis.dtype)
     for i in range(nfreqs):
@@ -32,7 +32,7 @@ def dedisperse(
     assert vis.shape[2] == nfreqs
 
     dispersion_delay_ms = get_dispersion_delay_ms(freq_GHz, dispersion_measure, ref_freq_GHz)
-    dispersion_delay_tbin = np.round(dispersion_delay_ms/sample_time_ms).astype(np.int)
+    dispersion_delay_tbin = np.round(dispersion_delay_ms/sample_time_ms).astype(int)
 
     for i in range(nfreqs):
         vis[:, :, i, :] = np.roll(vis[:, :, i, :], -1*dispersion_delay_tbin[i], axis=0)

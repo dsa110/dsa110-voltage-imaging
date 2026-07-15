@@ -64,10 +64,7 @@ def generate_uvh5(
 
     # Generate a uvh5 file for each corr node
     sb = re.findall(r"sb[0-9][0-9]", corrfile)[0]
-    _corrlist = {'sb00':'corr03','sb01':'corr04','sb02':'corr05','sb03':'corr06','sb04':'corr07',
-                 'sb05':'corr08','sb06':'corr10','sb07':'corr11','sb08':'corr12','sb09':'corr14',
-                 'sb10':'corr15','sb11':'corr16','sb12':'corr18','sb13':'corr19','sb14':'corr21',
-                 'sb15':'corr22'}
+    _corrlist = {'sb00':'lxd110h03','sb01':'lxd110h04','sb02':'lxd110h05','sb03':'lxd110h06','sb04':'lxd110h07','sb05':'lxd110h08','sb06':'lxd110h10','sb07':'lxd110h11','sb08':'lxd110h12','sb09':'lxd110h14','sb10':'lxd110h15','sb11':'lxd110h16','sb12':'lxd110h18','sb13':'lxd110h19','sb14':'lxd110h21','sb15':'lxd110h22'}
     corr = _corrlist[sb]
     
     outname = f"{name}_{sb}.hdf5"
@@ -195,6 +192,48 @@ def calculate_uvw_and_geodelay(
         bu, bv, bw = calc_uvw(
             vis_params['blen'], tobs.mjd, 'HADEC',
             np.tile(0.*u.rad, ntimes), np.tile(pt_dec, ntimes))
+        buvw = np.array([bu, bv, bw]).T
+
+    ant_bw = buvw[:, vis_params['refidxs'], -1]
+
+    return buvw, ant_bw
+
+def calculate_uvw_and_geodelay_radec(
+        vis_params: dict, tobs: np.ndarray, pt_ra: float, pt_dec: float, interpolate_uvws: bool = True) -> tuple:
+    """Calculate the uvw coordinates in the correlated file with RADEC frame.
+
+    Parameters
+    ----------
+    vis_params : dict
+        Parameters describing the correlated visibilities.
+    size_params : dict
+        Parameters describing the size of the data to be written to uvh5.
+    tobs : np.ndarray(float)
+        The time of each time bin in the visbilities in mjd.
+    pt_ra : float
+        The pointing ra of the observation in rad.
+    pt_dec : float
+        The pointing declination of the observation in rad.
+
+    Returns
+    -------
+    buvw : np.ndarray(float)
+        The uvw coordinates of each baseline, dimensions (time, baseline, 3).
+    ant_bw : np.ndarray(float)
+        The geometric path length, w, to each antenna, dimensions (time, antenna).
+    """
+    if tobs.ndim == 0:
+        interpolate_uvws = False
+        ntimes = 1
+    else:
+        ntimes = len(tobs)
+
+    if interpolate_uvws:
+        buvw = calc_uvw_interpolate(vis_params['blen'], tobs, 'J2000', pt_ra, pt_dec)
+    else:
+        bu, bv, bw = calc_uvw(
+            vis_params['blen'], tobs.mjd, 'J2000',
+            np.tile(pt_ra, ntimes), np.tile(pt_dec, ntimes))
         buvw = np.array([bu, bv, bw]).T
 
     ant_bw = buvw[:, vis_params['refidxs'], -1]

@@ -13,12 +13,14 @@ from dsacalib.uvh5_to_ms import fix_descending_missing_freqs, write_UV_to_ms
 
 from dsavim.update_template import update_metadata, TemplateMSVis
 
-# TODO: Clean up parameters in this file
+# Legacy T3-era defaults, used only when the caller omits arguments.
+# The M8 pipeline (scripts/voltages_to_ms.py) always passes uvh5files,
+# msname, centre_time and template_path explicitly, so none of these
+# paths need to exist there.
 UVH5DIR = '/media/ubuntu/ssd/data/'
 CORRNAME_PATTERN = re.compile('corr[0-9][0-9]')
 MSDIR = '/media/ubuntu/data/dsa110/imaging/'
 TEMPLATE = f'{MSDIR}/template.ms'
-VOLTAGEDIR = '/media/ubuntu/data/dsa110/T3/'
 CENTRE_TIME_S = 1907*262.144e-6
 DAY_TO_MS = 86400000.0
 DAY_TO_S = DAY_TO_MS/1e3

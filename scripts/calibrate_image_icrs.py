@@ -7,6 +7,7 @@ import casatools as cc
 
 candname = sys.argv[1]
 wdir = f"/media/ubuntu/ssd/localization_processing/{candname}/"
+#wdir = f"/media/ubuntu/data/localization_processing/{candname}/"
 os.system(f"mkdir -p {wdir}/icrs_image")
 
 idict = np.load(f"{wdir}/rfc_idict.npz",allow_pickle=True)["idict"].item()
