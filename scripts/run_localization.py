@@ -14,10 +14,14 @@ Runs, for one M8-era candidate (archive layout under
                  ntint=4096) for the burst-field image.
   4. fieldms   — create_ms.py: field MS from the ±2 h calibration-archive
                  HDF5s hard-linked by C3 (<cand_dir>/calibration/).
-  5. bpcalms   — build the bandpass-calibrator MS from
-                 /dataz/dsa110/operations/correlator at the latest transit
-                 of --bpcal-source (default 2253+161 = 3C454.3). Skipped
-                 if --bpcal-ms points at an existing MS.
+  5. bpcalms   — bandpass-calibrator MS for --bpcal-source (default
+                 2253+161 = 3C454.3): copy the latest per-transit MS the
+                 realtime calibration system writes to
+                 /dataz/dsa110/operations/calibration (copied because the
+                 calibrate stage modifies flags); only if none exists,
+                 build one from /dataz/dsa110/operations/correlator HDF5s
+                 at the latest transit. Skipped if --bpcal-ms points at an
+                 existing MS.
   6. calibrate — bp_gain_cal.py: bandpass on the calibrator, apply to the
                  field and burst MSs (field.ms, frb_bp.ms).
   7. icrs      — create_all_icrs.py: MSs on <=10 RFC VLBI calibrators
@@ -51,6 +55,7 @@ TOOLKIT = f"{BBPROC_DIR}/toolkit"
 CORE_ANTENNAS = f"{BBPROC_DIR}/config/core_antennas.txt"
 ARCHIVE_ROOT = "/dataz/dsa110/candidates"
 CORRELATOR_DIR = "/dataz/dsa110/operations/correlator"
+OPS_CALIBRATION_DIR = "/dataz/dsa110/operations/calibration"
 WORKROOT = "/media/ubuntu/ssd/localization_processing"
 
 NATIVE_SAMPLE_S = 32.768e-6
@@ -233,6 +238,30 @@ def latest_transit_files(calpos, duration, filelength):
         "bandpass calibrator")
 
 
+def find_bpcal_ms(args, workdir):
+    """Bandpass-calibrator MS, cheapest source first: (1) already in the
+    workdir, (2) the latest per-transit MS the realtime calibration
+    system writes to OPS_CALIBRATION_DIR — copied into the workdir since
+    the calibrate stage rewrites its flags, (3) built from the
+    operations/correlator HDF5s."""
+    name = args.bpcal_source
+    if not args.remake_bpcal:
+        local = sorted(glob.glob(f"{workdir}/*_{name}.ms"))
+        if local:
+            print(f"bpcal MS exists: {local[-1]}")
+            return local[-1]
+    ops = sorted(glob.glob(f"{OPS_CALIBRATION_DIR}/*_{name}.ms"))
+    if ops:
+        src = ops[-1]
+        dst = os.path.join(workdir, os.path.basename(src))
+        print(f"copying realtime-cal MS {src} -> {dst}")
+        run(["rsync", "-a", "--delete", src + "/", dst + "/"])
+        return dst
+    print(f"no *_{name}.ms under {OPS_CALIBRATION_DIR} — building from "
+          "correlator HDF5s")
+    return build_bpcal_ms(args, workdir)
+
+
 def build_bpcal_ms(args, workdir):
     import astropy.units as u
     from dsacalib.ms_io import convert_calibrator_pass_to_ms
@@ -240,11 +269,6 @@ def build_bpcal_ms(args, workdir):
     import dsacalib.config as configuration
 
     name = args.bpcal_source
-    existing = sorted(glob.glob(f"{workdir}/*_{name}.ms"))
-    if existing and not args.remake_bpcal:
-        print(f"bpcal MS exists: {existing[-1]}")
-        return existing[-1]
-
     calpos = resolve_calibrator(name)
     print(f"{name}: {calpos.to_string('hmsdms')}")
     hits, date, transit = latest_transit_files(
@@ -288,9 +312,10 @@ def parse_args():
                    help="assumed calibrator flux density "
                         "(3C454.3 ~ 15 Jy at 1.4 GHz, variable)")
     p.add_argument("--bpcal-duration-min", type=float, default=10.0,
-                   help="minutes of calibrator transit to convert")
+                   help="minutes of calibrator transit to convert (HDF5 "
+                        "fallback only)")
     p.add_argument("--remake-bpcal", action="store_true",
-                   help="rebuild the bpcal MS even if one exists")
+                   help="refresh the workdir bpcal MS even if one exists")
     p.add_argument("--refant", default="104",
                    help="reference antenna for the CASA solves")
     p.add_argument("--measure-tscrunch", type=int, default=8,
@@ -368,7 +393,7 @@ def main():
 
     bpcal_ms = args.bpcal_ms
     if "bpcalms" in stages and bpcal_ms is None:
-        bpcal_ms = build_bpcal_ms(args, workdir)
+        bpcal_ms = find_bpcal_ms(args, workdir)
     record["bpcal_ms"] = bpcal_ms
 
     if "calibrate" in stages:

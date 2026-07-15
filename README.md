@@ -42,9 +42,11 @@ for stage selection and overrides. Key options:
 - `--dm` — refine beyond the search's `dm_median`.
 - `--ntint` — science-MS integration (native 32.768 µs samples; default 512).
 - `--bpcal-source` — bandpass calibrator, by VLA-calibrator-list name
-  (default `2253+161` = 3C454.3); the MS is built from
-  `/dataz/dsa110/operations/correlator` at its latest transit. Or pass an
-  existing MS with `--bpcal-ms`.
+  (default `2253+161` = 3C454.3). The latest per-transit MS from the
+  realtime calibration system (`/dataz/dsa110/operations/calibration`) is
+  copied in; if none exists it is built from the
+  `/dataz/dsa110/operations/correlator` HDF5s. Or pass an existing MS with
+  `--bpcal-ms`.
 - `--bpcal-flux-jy`, `--refant` — calibration knobs (defaults 15 Jy, ant 104).
 
 Outputs land in `/media/ubuntu/ssd/localization_processing/<candname>/`,
