@@ -7,7 +7,7 @@ import casatools as cc
 from os import path
 
 candname = sys.argv[1]
-wdir = f"/media/ubuntu/data/localization_processing/{candname}/"
+wdir = f"/media/ubuntu/ssd/localization_processing/{candname}/"
 
 idict = np.load(f"{wdir}/rfc_idict_more.npz",allow_pickle=True)["idict"].item()
 for src in idict['jname']:

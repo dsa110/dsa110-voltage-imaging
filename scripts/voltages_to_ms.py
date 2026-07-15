@@ -21,7 +21,7 @@ import sys
 
 def voltages_to_ms(
         candname: str, ntint: int, start_offset: int, end_offset: int,
-        dispersion_measure: float = None, full_pol: bool = False, weights: str = None) -> None:
+        dispersion_measure: float = None, full_pol: bool = False, weights: str = None, obsdec: float = None) -> None:
     """
     Correlate voltage files and convert to a measurement set.
 
@@ -81,9 +81,8 @@ def voltages_to_ms(
     uvh5params = initialize_uvh5(corrparams, cand, system_setup, outrigger_delays)
 
     reftime = get_reftime()
-    declination = get_declination_etcd(cand.time)
+    declination = obsdec#get_declination_etcd(cand.time)
     print(declination)
-    #declination = 71.6
 
     generate_delay_table(uvh5params.visparams, reftime, declination, use_fs=False)
     #sys.exit(1)
@@ -99,7 +98,7 @@ def voltages_to_ms(
         correlate = partial(
             correlate_component, dispersion_measure=cand.dm, ntint=corrparams.ntint,
             corr_ch0=system_setup.corr_ch0_MHz, npol=corrparams.npol,
-            wfile={'path':'/home/ubuntu/vikram/scratch', 'datestring':weights})
+            wfile={'path':'/home/ubuntu/scratch/', 'datestring':weights})
     write_uvh5 = partial(
             uvh5_component, candname=cand.name, corrdir=system_setup.corrdir,
             declination=declination, vis_params=uvh5params.visparams, start_offset=start_offset,
@@ -139,7 +138,7 @@ def set_default_if_unset(start_offset: int, end_offset: int) -> tuple:
 
 def get_reftime() -> "Time":
     """Get the reference time used in the real-time correlator."""
-    conf = dsc.Conf()
+    conf = dsc.Conf(use_etcd=True)
     refmjd = conf.get('fringe')['refmjd']
     reftime = Time(refmjd, format='mjd')
     return reftime
@@ -159,6 +158,12 @@ def parse_commandline_arguments() -> 'argparse.Namespace':
         nargs='?',
         default=32,
         help="number of native time bins to integrate during correlation")
+    parser.add_argument(
+        '--obsdec',
+        type=float,
+        nargs='?',
+        default=16.27,
+        help="obsdec")
     parser.add_argument(
         '--startoffset',
         type=int,
@@ -192,4 +197,5 @@ if __name__ == '__main__':
     ARGS = parse_commandline_arguments()
     voltages_to_ms(
         ARGS.candname, ntint=ARGS.ntint, start_offset=ARGS.startoffset,
-        end_offset=ARGS.stopoffset, dispersion_measure=ARGS.dm, weights=ARGS.weights)
+        end_offset=ARGS.stopoffset, dispersion_measure=ARGS.dm, weights=ARGS.weights,
+        obsdec=ARGS.obsdec)

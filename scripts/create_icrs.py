@@ -67,9 +67,9 @@ dec = sys.argv[3]
 frbpos = SkyCoord(ra,dec,unit=(u.hourangle, u.deg))
 idict = rfc_lookup(frbpos,dra=8.5,ddec=1.0,thresh=0.04,findNearest=False)
 
-print(idict)
+#print(idict)
 
-sys.exit(1)
+#sys.exit(1)
 
 for i in np.arange(2):
     cal = generate_calibrator_source(idict['jname'][i],ra=idict['position'][i].ra,dec=idict['position'][i].dec)

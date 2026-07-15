@@ -79,14 +79,14 @@ cand_dir = "/dataz/dsa110/candidates/"+candname
 hdf5dir = cand_dir+"/Level2/calibration/"
 duration = 5.*u.min # length of output
 filelength = 5.*u.min # length of input files
-odir = "/media/ubuntu/data/localization_processing/"+candname+"/"
+odir = "/dataz/dsa110/localization_processing/"+candname+"/"
 msdir = odir
 
 
 # generate cal sources
 frbpos = frbpos_from_json(candname,cand_dir)
 idict = rfc_lookup(frbpos,dra=8.5,ddec=1.5,thresh=0.01,findNearest=False,findBrightest=True,nBrightest=24)
-#print(idict)
+print(idict)
 
 # find existing sources
 mss = glob.glob(f"{odir}/*_J*.ms")
@@ -100,7 +100,9 @@ for src in idict['jname']:
     else:
         made_file.append(False)
 
-myn = 13
+print("Already made:",existing_ms)
+print("")
+myn = 8
 nfiles = 0
 make_file = []
 for i in np.arange(len(made_file)):

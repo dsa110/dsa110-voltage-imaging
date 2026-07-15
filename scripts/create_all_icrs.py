@@ -79,9 +79,8 @@ filelength = 5.*u.min # length of input files
 
 # generate cal source
 frbpos = frbpos_from_json(candname,cand_dir)
-idict = rfc_lookup(frbpos,dra=8.5,ddec=1.0,thresh=0.05,findNearest=False,findBrightest=True)
+idict = rfc_lookup(frbpos,dra=8.5,ddec=1.3,thresh=0.02,findNearest=False,findBrightest=True,nBrightest=18)
 print(idict)
-#sys.exit(1)
 
 # make directory and save idict
 odir = "/media/ubuntu/ssd/localization_processing/"+candname+"/"
@@ -96,7 +95,7 @@ for i in np.arange(len(idict['sep'])):
     print("found files at date:",files,date)
 
     # create ms
-    print(f"Creating ms {i+1} of 2...")
+    print(f"Creating ms {i+1} of {len(idict['sep'])}...")
     convert_calibrator_pass_to_ms(
         cal,
         date,

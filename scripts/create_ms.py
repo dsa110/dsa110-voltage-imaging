@@ -101,7 +101,10 @@ def get_radec_T2_json(cname,cdir):
     # get ra and dec
     canddata = canddata[cname]
     mjd = canddata['mjds']
-    ra, dec = coordinates.get_pointing(ibeam=128,obstime=Time(mjd,format='mjd'))
+    ra = canddata['ra']*u.deg
+    dec = canddata['dec']*u.deg
+    
+    #ra, dec = coordinates.get_pointing(ibeam=128,obstime=Time(mjd,format='mjd'))
     return ra, dec
     
 
@@ -111,10 +114,12 @@ cand_dir = "/dataz/dsa110/candidates/"+candname
 msdir = "/media/ubuntu/ssd/localization_processing/"+candname
 hdf5dir = cand_dir+"/Level2/calibration/"
 ra, dec = get_radec_T2_json(candname,cand_dir)
+print(ra, dec)
+#ra=358.71*u.deg
+#dec=1.22*u.deg
 cal = generate_calibrator_source(candname, ra=ra, dec=dec)
-duration = 5.*u.min # length of output
+duration = 10.*u.min # length of output
 filelength = 5.*u.min # length of input files
-
 
 # find files
 def find_files_with_T2_json(cname,cdir,refsb="sb00"):
@@ -150,7 +155,7 @@ def find_files_with_T2_json(cname,cdir,refsb="sb00"):
 
 # run main
 
-if len(sys.argv)==2:
+if len(sys.argv)>=2:
 
     files,date = find_files_with_T2_json(candname,cand_dir)
     print("found files at date:",files,date)

@@ -28,9 +28,42 @@
 #source batch.bash 221224aaab 64 237 240 745.3 /dataz/dsa110/operations/calibration/2022-12-24_1459+716.ms
 #source batch.bash 220426aaaw 8 1907 1908 269.5 /dataz/dsa110/candidates/220426aaaw/Level2/calibration/2022-05-08_J145907+714019.ms
 
-source batch2.bash 220726aabn 32 476 477 686.55 /dataz/dsa110/candidates/220726aabn/Level2/calibration/220726aabn.B0
-source batch.bash 221018aaaj 256 59 60 219.46 /dataz/dsa110/operations/calibration/2022-10-17_1459+716.ms
-source batch.bash 221025aanu 256 59 60 219.46 /dataz/dsa110/operations/calibration/2022-10-24_1459+716.ms
+#source batch2.bash 220726aabn 32 476 477 686.55 /dataz/dsa110/candidates/220726aabn/Level2/calibration/220726aabn.B0
+#source batch.bash 221018aaaj 256 59 60 219.46 /dataz/dsa110/operations/calibration/2022-10-17_1459+716.ms
+#source batch.bash 221025aanu 256 59 60 219.46 /dataz/dsa110/operations/calibration/2022-10-24_1459+716.ms
+
+#source batch.bash 230112aaaw 64 237 239 650.2 /dataz/dsa110/operations/calibration/2023-01-12_1459+716.ms
+#source batch.bash 230124aaav 128 118 120 590.0 /dataz/dsa110/operations/calibration/2023-01-24_1459+716.ms
+#source batch.bash 230202aada 32 475 477 810.0 /dataz/dsa110/operations/calibration/2023-02-02_1229+020.ms
+#source batch.bash 230216aaag 32 476 477 828.0 /dataz/dsa110/operations/calibration/2023-02-16_1229+020.ms
+#source batch.bash 230307aaao 16 952 956 610.15 /dataz/dsa110/operations/calibration/2023-03-06_1459+716.ms
+#source batch.bash 230325aaag 4 3818 3821 912.38 /dataz/dsa110/operations/calibration/2023-03-25_1459+716.ms
+#source batch.bash 230501aaae 8 1905 1907 533.7 /dataz/dsa110/operations/calibration/2023-05-01_1459+716.ms
+#source batch.bash 230521aaad 16 952 953 1345.65 /dataz/dsa110/operations/calibration/2023-05-22_1459+716.ms
+#source batch.bash 230626aaai 8 1908 1909 451.2 /dataz/dsa110/operations/calibration/2023-06-26_1459+716.ms
+#source batch.bash 230628aaaa 32 476 477 345.15 /dataz/dsa110/operations/calibration/2023-06-26_1459+716.ms
+#source batch.bash 230712aadj 2 7627 7630 586.96 /dataz/dsa110/operations/calibration/2023-07-12_1459+716.ms
+#source batch.bash 230714aacu 4 3815 3817 838.95 /dataz/dsa110/operations/calibration/2023-07-14_1459+716.ms
+#source batch.bash 230814aaas 16 952 954 696.35 /dataz/dsa110/operations/calibration/2023-08-14_1459+716.ms
+#source batch.bash 230913aaao 16 953 954 518.7 /dataz/dsa110/operations/calibration/2023-09-12_1459+716.ms
+#source batch.bash 230928aaag 16 237 239 264.5 /dataz/dsa110/operations/calibration/2023-09-27_1459+716.ms
+#source batch.bash 231120aabi 128 118 121 438.9 /dataz/dsa110/operations/calibration/2023-11-20_1459+716.ms
+#source batch.bash 231123aacm 32 476 477 396.7 /dataz/dsa110/operations/calibration/2023-11-24_1459+716.ms
+#source batch.bash 231129aaaj 32 476 477 720.6 /dataz/dsa110/operations/calibration/2023-11-28_1459+716.ms
+#source batch.bash 231210aaaa 4 3809 3812 1131.65 /dataz/dsa110/operations/calibration/2023-12-09_1459+716.ms
+#source batch.bash 231215aaat 8 1903 1905 977.05 /dataz/dsa110/operations/calibration/2023-12-13_1459+716.ms
+#source batch.bash 231220aaae 16 953 954 491.2 /dataz/dsa110/operations/calibration/2023-12-19_1459+716.ms
+#source batch.bash 240104aaab 64 237 239 1351.0 /dataz/dsa110/operations/calibration/2024-01-03_1459+716.ms
+#source batch.bash 240123aaaf 256 59 60 1462.0 /dataz/dsa110/operations/calibration/2024-01-23_1459+716.ms
+#source batch.bash 240119aacg 64 238 240 483.1  /dataz/dsa110/operations/calibration/2024-01-19_1459+716.ms
+#source batch.bash 240122aaag 4 3806 3808 959.9  /dataz/dsa110/operations/calibration/2024-01-22_1459+716.ms
+#source batch.bash 240203aacl 16 953 954 272.25 /dataz/dsa110/operations/calibration/2024-02-03_1459+716.ms
+#source batch.bash 240213aani 32 476 479 357.4 /dataz/dsa110/operations/calibration/2024-02-13_1459+716.ms
+#source batch.bash 240215aawc 32 476 478 549.5 /dataz/dsa110/operations/calibration/2024-02-15_1459+716.ms
+#source batch.bash 240224aaad 4 3810 3812 881.2 /dataz/dsa110/operations/calibration/2024-02-23_1459+716.ms
+#source batch.bash 240229aaad 8 1907 1908 491.15 /dataz/dsa110/operations/calibration/2024-02-29_1459+716.ms
+source batch.bash 240304aaax 64 236 238 443.2 /dataz/dsa110/operations/calibration/2024-03-04_1459+716.ms
+
 
 
 

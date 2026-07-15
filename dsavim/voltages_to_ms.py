@@ -22,7 +22,7 @@ from dsautils.coordinates import get_declination, get_elevation
 import dsacalib.constants as ct
 
 from dsavim.dedisperse import get_dispersion_delay_ms
-from dsavim.generate_uvh5 import calculate_uvw_and_geodelay, get_total_delay
+from dsavim.generate_uvh5 import calculate_uvw_and_geodelay, get_total_delay, calculate_uvw_and_geodelay_radec
 from dsavim.utils import rsync_file, get_tstart_from_json, get_DM_from_json, load_params
 from dsavim.generate_uvh5 import generate_uvh5
 
@@ -31,7 +31,7 @@ from dsamfs.fringestopping import generate_fringestopping_table
 __all__ = [
     'pipeline_component', 'rsync_component', 'correlate_component',
     'uvh5_component',
-    'generate_delay_table', 'initialize_system', 'initialize_candidate', 'initialize_correlator',
+    'generate_delay_table', 'generate_delay_table_radec', 'initialize_system', 'initialize_candidate', 'initialize_correlator',
     'initialize_uvh5', 'initialize_vis_params', 'parse_visibility_parameters', 'get_cable_delays',
     'get_declination_etcd', 'get_blen', 'ProtectedVariable']
 
@@ -91,16 +91,13 @@ def correlate_component(
 
     """Correlate a file."""    
     sb = re.findall(r"sb\d\d", vfile)[0]
-    _corrlist = {'sb00':'corr03','sb01':'corr04','sb02':'corr05','sb03':'corr06','sb04':'corr07',
-                 'sb05':'corr08','sb06':'corr10','sb07':'corr11','sb08':'corr12','sb09':'corr14',
-                 'sb10':'corr15','sb11':'corr16','sb12':'corr18','sb13':'corr19','sb14':'corr21',
-                 'sb15':'corr22'}
+    _corrlist = {'sb00':'lxd110h03','sb01':'lxd110h04','sb02':'lxd110h05','sb03':'lxd110h06','sb04':'lxd110h07','sb05':'lxd110h08','sb06':'lxd110h10','sb07':'lxd110h11','sb08':'lxd110h12','sb09':'lxd110h14','sb10':'lxd110h15','sb11':'lxd110h16','sb12':'lxd110h18','sb13':'lxd110h19','sb14':'lxd110h21','sb15':'lxd110h22'}
     corr = _corrlist[sb]
     
     if not os.path.exists(f"{vfile}.corr"):
         first_channel_MHz = corr_ch0[corr]
         command = (
-            "/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit "
+            "/home/ubuntu/proj/dsa110-shell/dsa110-bbproc/toolkit_dev "
             f"-i {vfile} -o {vfile}.corr -t {ntint} -c {first_channel_MHz} "
             f"-d delays.dat {'' if npol==4 else '-a'}")
         if dispersion_measure is not None:
@@ -150,6 +147,7 @@ def generate_delay_table(vis_params, reftime, declination, use_fs=True):
         # try using intermediate fringestopping table
         print("Using fringestopping table...")
         odelays = {"110": -222, "113": -1394, "114": -3514, "115": -5070}
+        
         print(odelays)
         generate_fringestopping_table(vis_params['blen'],declination*np.pi/180.,1,1.,vis_params['antenna_order'],odelays,vis_params['bname'],reftime.mjd)
         data = np.load('fringestopping_table.npz')
@@ -162,6 +160,18 @@ def generate_delay_table(vis_params, reftime, declination, use_fs=True):
             vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'],
             vis_params['antenna_order'])
         total_delay_string = '\n'.join(total_delay.flatten().astype('str'))+'\n'
+        
+    with open('delays.dat', 'w', encoding='utf-8') as f:
+        f.write(total_delay_string)
+
+def generate_delay_table_radec(vis_params, reftime, rajd, declination):
+    """Generate a table of geometric and cable delays for the correlator, with RA and DEC."""
+
+    _buvw, ant_bw = calculate_uvw_and_geodelay_radec(vis_params, reftime, (rajd*np.pi/180.)*u.rad, (declination*np.pi/180.)*u.rad)
+    total_delay = get_total_delay(
+        vis_params['baseline_cable_delays'], ant_bw, vis_params['bname'],
+        vis_params['antenna_order'])
+    total_delay_string = '\n'.join(total_delay.flatten().astype('str'))+'\n'
         
     with open('delays.dat', 'w', encoding='utf-8') as f:
         f.write(total_delay_string)
