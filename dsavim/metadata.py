@@ -102,12 +102,22 @@ class Burst:
 def load_burst(candname: str,
                archive_root: Path = ARCHIVE_ROOT,
                dm: Optional[float] = None,
-               pointing_dec_deg: Optional[float] = None) -> Burst:
+               pointing_dec_deg: Optional[float] = None,
+               time_shift_s: float = 0.0) -> Burst:
     """Read the M8 candidate archive into a :class:`Burst`.
 
     ``dm``/``pointing_dec_deg`` override the archived values (the DM
     used for pre-correlation dedispersion may legitimately be refined
     beyond the search's dm_median).
+
+    ``time_shift_s`` is ADDED to every archived absolute timestamp
+    (t_peak and the dump manifests' mjd_target — relative timing is
+    unaffected). The archived times inherit the C2/search wall-clock
+    latch (search_compute mjd_at_specnum_0), which is LATE by the
+    first-cube pipeline latency — a constant per search restart,
+    seconds-scale (measured +4.9 s for the 2026-07-15 morning epoch,
+    +6.3 s for the 14:18 epoch, via NVSS astrometry / dump-manifest
+    block arithmetic). Pass the NEGATIVE of the measured lateness.
     """
     cdir = Path(archive_root) / candname
     l3path = cdir / "Level3" / f"{candname}.json"
@@ -116,7 +126,7 @@ def load_burst(candname: str,
     if not c2:
         raise ValueError(f"no c2 block in {l3path}")
 
-    t_peak_mjd = float(c2["t_peak_mjd"])
+    t_peak_mjd = float(c2["t_peak_mjd"]) + time_shift_s / 86400.0
     l_rad = float(c2.get("l_median") or 0.0)
     m_rad = float(c2.get("m_median") or 0.0)
     if dm is None:
@@ -155,7 +165,10 @@ def load_burst(candname: str,
         mjd_target = float(manifest.get("mjd_target") or 0.0)
         if mjd_target < 40000.0:
             # pre-fix manifests recorded 0.0; use the C2 record
+            # (t_peak_mjd already carries time_shift_s)
             mjd_target = t_peak_mjd
+        else:
+            mjd_target += time_shift_s / 86400.0
     else:
         # Manifest-less fallback (events before 2026-07-15, when C3
         # started collecting the staging manifests): block count from

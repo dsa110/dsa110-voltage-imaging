@@ -21,7 +21,8 @@ import sys
 
 def voltages_to_ms(
         candname: str, ntint: int, start_offset: int, end_offset: int,
-        dispersion_measure: float = None, full_pol: bool = False, weights: str = None, obsdec: float = None) -> None:
+        dispersion_measure: float = None, full_pol: bool = False, weights: str = None, obsdec: float = None,
+        time_shift_s: float = 0.0) -> None:
     """
     Correlate voltage files and convert to a measurement set.
 
@@ -51,7 +52,8 @@ def voltages_to_ms(
     # The following needs to happen in a subprocess
     system_setup = initialize_system()
 
-    cand = initialize_candidate(candname, system_setup, dispersion_measure)
+    cand = initialize_candidate(candname, system_setup, dispersion_measure,
+                                time_shift_s=time_shift_s)
     corrparams = initialize_correlator(full_pol, ntint, cand, system_setup)
 
     # TODO: Look up outrigger delays in influx instead of using these hardcoded values
@@ -187,6 +189,14 @@ def parse_commandline_arguments() -> 'argparse.Namespace':
         nargs='?',
         help="dispersion measure to use instead of value in header file")
     parser.add_argument(
+        '--time-shift-s',
+        type=float,
+        nargs='?',
+        default=0.0,
+        help="seconds ADDED to the archived absolute timestamps "
+             "(corrects the C2 wall-clock-latch label error; negative "
+             "when labels are late)")
+    parser.add_argument(
         '--weights',
         type=str,
         nargs='?',
@@ -203,4 +213,4 @@ if __name__ == '__main__':
     voltages_to_ms(
         ARGS.candname, ntint=ARGS.ntint, start_offset=ARGS.startoffset,
         end_offset=ARGS.stopoffset, dispersion_measure=ARGS.dm, weights=ARGS.weights,
-        obsdec=ARGS.obsdec)
+        obsdec=ARGS.obsdec, time_shift_s=ARGS.time_shift_s)

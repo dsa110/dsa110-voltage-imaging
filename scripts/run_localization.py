@@ -324,6 +324,14 @@ def parse_args():
     p.add_argument("--min-snr", type=float, default=7.0,
                    help="abort if the dedispersed-filterbank burst S/N "
                         "is below this")
+    p.add_argument("--time-shift-s", type=float, default=0.0,
+                   help="seconds ADDED to the archived absolute "
+                        "timestamps. The C2/search labels are LATE by a "
+                        "per-restart constant (wall-clock latch; measure "
+                        "it from the NVSS RA offset of the full-image, "
+                        "or the dump-manifest block arithmetic) — pass "
+                        "the NEGATIVE of the measured lateness, e.g. "
+                        "-4.90.")
     p.add_argument("--gpu", type=int, default=0, help="toolkit GPU")
     p.add_argument("--stages", default=",".join(STAGES),
                    help="comma-separated stages to run "
@@ -339,7 +347,8 @@ def main():
         sys.exit(f"unknown stage(s): {sorted(bad)}")
 
     from dsavim.metadata import load_burst
-    burst = load_burst(args.candname, dm=args.dm)
+    burst = load_burst(args.candname, dm=args.dm,
+                       time_shift_s=args.time_shift_s)
     if burst.edge_clamped:
         print("WARNING: (l, m) is clamped to the image-grid edge — the "
               "archived burst position is untrustworthy")
@@ -348,6 +357,7 @@ def main():
 
     record = {"candname": args.candname, "dm": burst.dm,
               "ntint": args.ntint,
+              "time_shift_s": args.time_shift_s,
               "pointing_dec_deg": burst.pointing_dec_deg,
               "ra_deg": burst.ra_deg, "dec_deg": burst.dec_deg,
               "file_start_mjd": burst.file_start.mjd,
@@ -376,7 +386,8 @@ def main():
         nbins = burst.n_native_samples // FULL_NTINT
         pyscript("voltages_to_ms.py", args.candname,
                  "--ntint", FULL_NTINT, "--startoffset", 0,
-                 "--stopoffset", nbins, "--dm", burst.dm)
+                 "--stopoffset", nbins, "--dm", burst.dm,
+                 "--time-shift-s", args.time_shift_s)
         full = os.path.join(workdir, f"{args.candname}_full.ms")
         if os.path.exists(full):
             run(["rm", "-rf", full])
@@ -386,7 +397,8 @@ def main():
     if "burstms" in stages:
         pyscript("voltages_to_ms.py", args.candname,
                  "--ntint", args.ntint, "--startoffset", start,
-                 "--stopoffset", stop, "--dm", burst.dm)
+                 "--stopoffset", stop, "--dm", burst.dm,
+                 "--time-shift-s", args.time_shift_s)
 
     if "fieldms" in stages:
         pyscript("create_ms.py", args.candname)

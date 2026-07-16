@@ -196,7 +196,8 @@ def initialize_system():
     return system_setup
 
 
-def initialize_candidate(candname, system_setup, dispersion_measure=None):
+def initialize_candidate(candname, system_setup, dispersion_measure=None,
+                         time_shift_s=0.0):
     """Set candidate parameters from the dsa110-rt (M8) archive.
 
     2026-07 rewrite: the T3-era ``T2_<cand>.json`` is gone; burst time,
@@ -208,7 +209,8 @@ def initialize_candidate(candname, system_setup, dispersion_measure=None):
     nsubint yaml constants)."""
     from dsavim.metadata import load_burst
 
-    burst = load_burst(candname, dm=dispersion_measure)
+    burst = load_burst(candname, dm=dispersion_measure,
+                       time_shift_s=time_shift_s)
     Candidate = namedtuple(
         'Candidate',
         'name time dm voltagefiles headerfile local burst nsamples')
