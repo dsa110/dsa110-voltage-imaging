@@ -110,14 +110,17 @@ def load_burst(candname: str,
     used for pre-correlation dedispersion may legitimately be refined
     beyond the search's dm_median).
 
-    ``time_shift_s`` is ADDED to every archived absolute timestamp
-    (t_peak and the dump manifests' mjd_target — relative timing is
-    unaffected). The archived times inherit the C2/search wall-clock
-    latch (search_compute mjd_at_specnum_0), which is LATE by the
-    first-cube pipeline latency — a constant per search restart,
-    seconds-scale (measured +4.9 s for the 2026-07-15 morning epoch,
-    +6.3 s for the 14:18 epoch, via NVSS astrometry / dump-manifest
-    block arithmetic). Pass the NEGATIVE of the measured lateness.
+    ``time_shift_s`` is ADDED to the LABEL-derived timestamps (t_peak,
+    and file_start when falling back to mjd_target anchoring). Since
+    2026-07-19 ``file_start`` is anchored on the manifests'
+    ``block_mjd_first`` (capture-arm chain: armed_mjd + block
+    arithmetic — never had the wall-clock-latch bug), so for M8
+    manifests with armed provenance ``time_shift_s`` no longer moves
+    the voltage-MS time axis. It remains the workaround for older
+    archives, where the C2/search wall-clock latch (search_compute
+    mjd_at_specnum_0) made every label LATE by a per-restart constant
+    (measured +4.9 s for the 2026-07-15 morning epoch, +6.3 s for the
+    14:18 epoch). Pass the NEGATIVE of the measured lateness there.
     """
     cdir = Path(archive_root) / candname
     l3path = cdir / "Level3" / f"{candname}.json"
@@ -158,10 +161,26 @@ def load_burst(candname: str,
             dropped[sb] = list(doc.get("dropped_block_ns") or [])
             if manifest is None:
                 manifest = doc
+    file_start_from_arm: Optional[float] = None
     if manifest is not None:
         n_blocks = int(manifest["n_blocks_written"])
         pre_blocks = int(manifest["target_block_n"]) - int(
             manifest["block_n_first"])
+        # 2026-07-19 (B1933 ladder analysis): anchor the file start on
+        # ``block_mjd_first`` — the corr-side capture-arm chain
+        # (armed_mjd + block arithmetic, same base as the slow-vis
+        # HDF5s) — NOT on the C2 label. The label (mjd_target =
+        # c2.t_peak_mjd) carries per-event cluster-centroid jitter of
+        # ~0.1 s (~1.5" of RA in the voltage MS) even after the
+        # 18b0d0c wall-latch fix. ``block_mjd_first`` records the
+        # correct time for its file's first byte under BOTH manifest
+        # versions (v1's 1-based labels and v2's 0-based labels use
+        # matching formulas), so no version switch is needed here.
+        # The armed chain never had the wall-clock-latch bug, so
+        # ``time_shift_s`` deliberately does NOT apply to it.
+        bmf = manifest.get("block_mjd_first")
+        if bmf is not None and float(bmf) > 40000.0:
+            file_start_from_arm = float(bmf)
         mjd_target = float(manifest.get("mjd_target") or 0.0)
         if mjd_target < 40000.0:
             # pre-fix manifests recorded 0.0; use the C2 record
@@ -189,7 +208,12 @@ def load_burst(candname: str,
         warnings.warn(
             f"{candname}: no staging manifests; reconstructed timing "
             f"(n_blocks={n_blocks}, pre_blocks={pre_blocks} by era)")
-    file_start_mjd = mjd_target - pre_blocks * BLOCK_S / 86400.0
+    if file_start_from_arm is not None:
+        file_start_mjd = file_start_from_arm
+    else:
+        # label-anchored fallback (manifest-less events and manifests
+        # predating armed_mjd provenance, 2026-07-16)
+        file_start_mjd = mjd_target - pre_blocks * BLOCK_S / 86400.0
 
     # sky position (phase-center quality)
     dec_deg = pointing_dec_deg + math.degrees(m_rad)
