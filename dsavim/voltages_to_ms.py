@@ -362,12 +362,24 @@ def get_cable_delays(outrigger_delays: dict, bname: list) -> np.ndarray:
     np.ndarray
         The cable delay for each baseline in bname.
     """
-    print(outrigger_delays.keys())
+    # 2026-07-21: normalise key types. ``outrigger_delays`` comes from
+    # etcd /cnf/fringe (load_params), and etcd's JSON round-trip turns
+    # the antenna-number keys into STRINGS ('110'), while the lookups
+    # below use int keys — so every .get() silently returned 0 and the
+    # coarse cable delays (222/1394/3514/5070 ns on 110/113/114/115)
+    # were NEVER applied in the voltage->MS chain (the pre-2022
+    # hardcoded dict in scripts/voltages_to_ms.py has int keys, which
+    # is why the T3-era path worked). Confirmed empirically on the
+    # 260718 B1933 pulses: per-antenna lag spectra peaked at exactly
+    # -222 ns (ant 110) and -1394 ns (ant 113); the un-delayed
+    # outriggers were fully decoherent and degraded burst astrometry
+    # (RA scatter 2.5" -> 1.05" when they were flagged).
+    od = {int(k): int(v) for k, v in (outrigger_delays or {}).items()}
+    print("outrigger_delays (keys normalised):", od)
     delays = np.zeros(len(bname), dtype=int)
     for i, bn in enumerate(bname):
         ant1, ant2 = bn.split('-')
-        delays[i] = outrigger_delays.get(int(ant1), 0)-\
-                    outrigger_delays.get(int(ant2), 0)
+        delays[i] = od.get(int(ant1), 0) - od.get(int(ant2), 0)
     return delays
 
 
