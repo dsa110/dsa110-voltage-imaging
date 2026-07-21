@@ -333,6 +333,15 @@ def parse_args():
                         "the NEGATIVE of the measured lateness, e.g. "
                         "-4.90.")
     p.add_argument("--gpu", type=int, default=0, help="toolkit GPU")
+    p.add_argument("--no-dispfix", action="store_true",
+                   help="skip the per-channel dispersion-rotation "
+                        "correction (dsavim.dispfix) on the burst/full "
+                        "MSs. The pre-correlation dedispersion leaves "
+                        "each channel imaged with the label-time fringe "
+                        "rotation, biasing positions west by "
+                        "~omega*<tau(DM)>*cos(dec) (DM-dependent; ~0.7\" "
+                        "at DM 158, ~7\" at DM 1700) and smearing the "
+                        "burst along RA. Default: apply.")
     p.add_argument("--stages", default=",".join(STAGES),
                    help="comma-separated stages to run "
                         f"(of: {','.join(STAGES)})")
@@ -357,6 +366,7 @@ def main():
 
     record = {"candname": args.candname, "dm": burst.dm,
               "ntint": args.ntint,
+              "dispfix": not args.no_dispfix,
               "time_shift_s": args.time_shift_s,
               "pointing_dec_deg": burst.pointing_dec_deg,
               "ra_deg": burst.ra_deg, "dec_deg": burst.dec_deg,
@@ -380,6 +390,16 @@ def main():
                      "--startoffset/--stopoffset")
     record["startoffset"], record["stopoffset"] = start, stop
 
+    # 2026-07-21: per-channel dispersion-rotation correction applied
+    # in place right after each voltage MS is written (see
+    # dsavim.dispfix; the raw MSs carry only a DATA column).
+    def _dispfix(ms_path):
+        if args.no_dispfix:
+            return
+        from dsavim.dispfix import fix_ms
+        fix_ms(ms_path, burst.dm, ms_out=ms_path, column="DATA")
+        print(f"dispfix (DM {burst.dm}) applied in place -> {ms_path}")
+
     # fullms MUST precede burstms: both write <cand>.ms, and the rename
     # to <cand>_full.ms happens here.
     if "fullms" in stages:
@@ -392,6 +412,7 @@ def main():
         if os.path.exists(full):
             run(["rm", "-rf", full])
         os.rename(os.path.join(workdir, f"{args.candname}.ms"), full)
+        _dispfix(full)
         print(f"full-file MS -> {full}")
 
     if "burstms" in stages:
@@ -399,6 +420,7 @@ def main():
                  "--ntint", args.ntint, "--startoffset", start,
                  "--stopoffset", stop, "--dm", burst.dm,
                  "--time-shift-s", args.time_shift_s)
+        _dispfix(os.path.join(workdir, f"{args.candname}.ms"))
 
     if "fieldms" in stages:
         pyscript("create_ms.py", args.candname)
