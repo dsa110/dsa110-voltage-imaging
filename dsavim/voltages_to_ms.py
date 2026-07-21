@@ -21,7 +21,6 @@ from antpos.utils import get_itrf
 from dsautils.coordinates import get_declination, get_elevation
 import dsacalib.constants as ct
 
-from dsavim.dedisperse import get_dispersion_delay_ms
 from dsavim.generate_uvh5 import calculate_uvw_and_geodelay, get_total_delay, calculate_uvw_and_geodelay_radec
 from dsavim.utils import rsync_file, get_tstart_from_json, get_DM_from_json, load_params
 from dsavim.generate_uvh5 import generate_uvh5
@@ -256,17 +255,20 @@ def initialize_uvh5(corrparams, cand, system_setup, outrigger_delays=None):
 def initialize_vis_params(corrparams, cand, outrigger_delays=None):
     """Set parameters that describe the visbilities produced by the correlator.
 
-    The time is adjusted so that the dedispersed signal has the correct time
-    for the centre of the band.
+    Time convention (2026-07-21): the MS time axis is ``cand.time`` +
+    bin offsets, in the toolkit's 1530-MHz dedispersion frame — every
+    channel's samples at label t were RECEIVED at t + tau(nu | 1530).
+    An earlier draft shifted the start time by the 1530->1405 (band
+    centre) dispersion delay here; that assignment was dead (never
+    used), and it must STAY out: dsavim.dispfix corrects the
+    per-channel rotation in the 1530 frame, so re-referencing the time
+    axis to band centre would double-count ~0.1 s x (DM/158.5) of
+    absolute time (~1.5" of RA per 158 DM units). Positions from these
+    MSs refer to the burst's 1530-MHz-extrapolated arrival instant.
     """
     T3params = load_params(PARAMFILE)
     if outrigger_delays:
         T3params['outrigger_delays'] = outrigger_delays
-
-    # Adjust the start time so that the dedispersed signal has the correct
-    # time for the centre of the band.
-    dispersion_delay = get_dispersion_delay_ms(1.405, cand.dm, 1.530)*u.ms
-    tstart = cand.time + dispersion_delay
 
     # M8: per-fragment sample count comes from the dump manifests, not
     # the yaml nsubint constant (T3 files were always 61440 samples;
